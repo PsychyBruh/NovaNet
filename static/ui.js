@@ -367,19 +367,25 @@ function BrowserApp() {
 	}
 	this.frame = window.novaTabs.frames[this.activeTabId];
 
-	// Pretty-print proxied URLs in the input
-	const toDisplayUrl = (rawUrl) => {
+	// Pretty-print proxied URLs in the input; ignore internal proxied endpoints
+	const extractDisplayUrl = (rawUrl) => {
 		if (!rawUrl) return '';
 		try {
 			if (rawUrl.startsWith('data:')) return '';
+			let candidate = rawUrl;
 			const marker = '/scramjet/';
 			const idx = rawUrl.indexOf(marker);
 			if (idx !== -1) {
 				const enc = rawUrl.slice(idx + marker.length);
-				try { return decodeURIComponent(enc); } catch { return enc; }
+				try { candidate = decodeURIComponent(enc); } catch { candidate = enc; }
 			}
-			return rawUrl;
-		} catch { return rawUrl; }
+			const u = new URL(candidate);
+			// If candidate resolves to our deployment host, it's an internal proxied fetch; don't show
+			if (u.host === location.host) return '';
+			return u.href;
+		} catch {
+			return '';
+		}
 	};
 
 	// Helper to attach urlchange listeners per frame/tab (once)
@@ -391,14 +397,14 @@ function BrowserApp() {
 			if (!tab) return;
 			tab.url = e.url;
 			tab.initialized = true;
-			try {
-				const urlObj = new URL(toDisplayUrl(e.url));
-				tab.title = urlObj.hostname || 'NovaNet';
-			} catch { tab.title = 'NovaNet'; }
-			if (window.novaTabs.activeTabId === tabId) {
-				this.url = toDisplayUrl(e.url);
-				const input = this.root?.querySelector('.url-bar');
-				if (input) input.value = this.url;
+			const display = extractDisplayUrl(e.url);
+			if (display) {
+				try { tab.title = new URL(display).hostname || 'NovaNet'; } catch { tab.title = 'NovaNet'; }
+				if (window.novaTabs.activeTabId === tabId) {
+					this.url = display;
+					const input = this.root?.querySelector('.url-bar');
+					if (input) input.value = this.url;
+				}
 			}
 		});
 		frame.__novaAttached = true;
@@ -408,8 +414,8 @@ function BrowserApp() {
 
 	// Initialize visible URL from active tab
 	try {
-		const active = window.novaTabs.tabs.find(t => t.id === this.activeTabId);
-		this.url = active?.url ? toDisplayUrl(active.url) : '';
+    const active = window.novaTabs.tabs.find(t => t.id === this.activeTabId);
+    this.url = active?.url ? extractDisplayUrl(active.url) : '';
 	} catch { this.url = ''; }
 
 	this.css = `
@@ -1123,20 +1129,7 @@ function BrowserApp() {
 		return this.frame.go(this.url);
 	};
 
-	// Set up frame event listener
-	this.frame.addEventListener("urlchange", (e) => {
-		if (!e.url) return;
-		this.url = e.url;
-		
-		// Update the active tab
-		const activeTab = window.novaTabs.tabs.find(tab => tab.id === this.activeTabId);
-		if (activeTab) {
-			activeTab.url = e.url;
-			activeTab.initialized = true;
-			const urlObj = new URL(e.url);
-			activeTab.title = urlObj.hostname || 'NovaNet';
-		}
-	});
+	// Per-frame listeners already update state and input; no duplicate listener here
 
 	const cfg = h(Config);
 	document.body.appendChild(cfg);
