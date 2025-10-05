@@ -27,17 +27,18 @@ wisp.options.allow_private_ips = true;
 
 const fastify = Fastify({
 	serverFactory: (handler) => {
-		return createServer()
-			.on("request", (req, res) => {
-				res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-				res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
-
-				if (bare.shouldRoute(req)) {
-					bare.routeRequest(req, res);
-				} else {
-					handler(req, res);
-				}
-			})
+    return createServer()
+      .on("request", (req, res) => {
+        if (bare.shouldRoute(req)) {
+          // Proxy traffic: do not apply COOP/COEP here
+          bare.routeRequest(req, res);
+        } else {
+          // App/static traffic only: enable COOP/COEP
+          res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+          res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+          handler(req, res);
+        }
+      })
 			.on("upgrade", (req, socket, head) => {
 				if (bare.shouldRoute(req)) {
 					bare.routeUpgrade(req, socket, head);
