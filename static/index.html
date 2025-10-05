@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>NovaNet</title>
+		<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%2300d4ff'/><stop offset='100%' stop-color='%230099cc'/></linearGradient></defs><rect width='64' height='64' rx='12' fill='%230a0a0a'/><circle cx='32' cy='32' r='26' fill='url(%23g)'/><path d='M22 42 V22 L42 42 V22' fill='none' stroke='%23ffffff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+		<link
+			href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&amp;family=Inter+Tight:ital,wght@0,100..900;1,100..900&amp;family=Inter:wght@100..900&amp;display=swap&amp;"
+			rel="stylesheet"
+		/>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Hind:wght@300;400;500;600;700&display=swap"
+			rel="stylesheet"
+		/>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Hind:wght@300;400;500;600;700&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			:root {
+				/* Modern Color Palette */
+				--bg-primary: #0a0a0a;
+				--bg-secondary: #111111;
+				--bg-tertiary: #1a1a1a;
+				--bg-elevated: #1e1e1e;
+				--bg-glass: rgba(30, 30, 30, 0.8);
+				
+				--text-primary: #ffffff;
+				--text-secondary: #a0a0a0;
+				--text-tertiary: #666666;
+				--text-accent: #00d4ff;
+				
+				--accent-primary: #00d4ff;
+				--accent-secondary: #0099cc;
+				--accent-gradient: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+				
+				--border-primary: #333333;
+				--border-secondary: #444444;
+				--border-accent: #00d4ff;
+				
+				--shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+				--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
+				--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+				--shadow-glow: 0 0 20px rgba(0, 212, 255, 0.3);
+				
+				--radius-sm: 6px;
+				--radius-md: 12px;
+				--radius-lg: 16px;
+				--radius-xl: 24px;
+				
+				--spacing-xs: 4px;
+				--spacing-sm: 8px;
+				--spacing-md: 16px;
+				--spacing-lg: 24px;
+				--spacing-xl: 32px;
+				--spacing-2xl: 48px;
+				
+				--transition-fast: 0.15s ease;
+				--transition-normal: 0.3s ease;
+				--transition-slow: 0.5s ease;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body,
+			html,
+			#app {
+				font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+				width: 100vw;
+				height: 100vh;
+				margin: 0;
+				padding: 0;
+				background: var(--bg-primary);
+				overflow: hidden;
+				color: var(--text-primary);
+				-webkit-font-smoothing: antialiased;
+				-moz-osx-font-smoothing: grayscale;
+			}
+
+			/* Modern Scrollbar */
+			::-webkit-scrollbar {
+				width: 8px;
+				height: 8px;
+			}
+
+			::-webkit-scrollbar-track {
+				background: var(--bg-secondary);
+			}
+
+			::-webkit-scrollbar-thumb {
+				background: var(--border-secondary);
+				border-radius: var(--radius-sm);
+			}
+
+			::-webkit-scrollbar-thumb:hover {
+				background: var(--text-tertiary);
+			}
+
+			/* Animations */
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+					transform: translateY(10px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+
+			@keyframes slideIn {
+				from {
+					opacity: 0;
+					transform: translateX(-20px);
+				}
+				to {
+					opacity: 1;
+					transform: translateX(0);
+				}
+			}
+
+			@keyframes pulse {
+				0%, 100% {
+					opacity: 1;
+				}
+				50% {
+					opacity: 0.7;
+				}
+			}
+
+			@keyframes glow {
+				0%, 100% {
+					box-shadow: 0 0 5px var(--accent-primary);
+				}
+				50% {
+					box-shadow: 0 0 20px var(--accent-primary), 0 0 30px var(--accent-primary);
+				}
+			}
+
+			/* Glass morphism effect */
+			.glass {
+				background: var(--bg-glass);
+				backdrop-filter: blur(20px);
+				-webkit-backdrop-filter: blur(20px);
+				border: 1px solid var(--border-primary);
+			}
+
+			/* Gradient text */
+			.gradient-text {
+				background: var(--accent-gradient);
+				-webkit-background-clip: text;
+				-webkit-text-fill-color: transparent;
+				background-clip: text;
+			}
+		</style>
+		<script
+			defer
+			data-domain="scramjet.mercurywork.shop"
+			src="https://analytics.proudparrot2.com/js/script.js"
+		></script>
+		<script src="https://cdn.jsdelivr.net/npm/dreamland@0.0.25"></script>
+		<script src="/baremux/index.js"></script>
+		<script src="/scram/scramjet.all.js"></script>
+		<script src="config.js"></script>
+		<script src="store.js"></script>
+	</head>
+
+	<body>
+		<div id="app"></div>
+		<script src="ui.js"></script>
+	</body>
+</html>
