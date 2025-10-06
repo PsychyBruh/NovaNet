@@ -130,7 +130,7 @@ export async function handleFetch(
 			requestUrl.searchParams.delete(param);
 		}
 
-		const url = new URL(unrewriteUrl(requestUrl));
+    let url = new URL(unrewriteUrl(requestUrl));
 		// now that we're past unrewriting it's safe to add back the params
 		for (const [param, value] of Object.entries(extraParams)) {
 			url.searchParams.set(param, value);
@@ -192,11 +192,20 @@ export async function handleFetch(
 			const r = await activeWorker.fetch(request);
 			if (r) return r;
 		}
-		if (url.origin === new URL(request.url).origin) {
-			throw new Error(
-				"attempted to fetch from same origin - this means the site has obtained a reference to the real origin, aborting"
-			);
-		}
+    if (url.origin === new URL(request.url).origin) {
+      // Fallback: some sites leak proxied URLs back into fetch(). Rebase against decoded referrer origin.
+      if (request.referrer && request.referrer.includes(config.prefix)) {
+        try {
+          const ref = new URL(unrewriteUrl(request.referrer));
+          url = new URL(url.pathname + url.search + url.hash, ref.origin);
+        } catch {}
+      }
+      if (url.origin === new URL(request.url).origin) {
+        throw new Error(
+          "attempted to fetch from same origin - this means the site has obtained a reference to the real origin, aborting"
+        );
+      }
+    }
 
 		const headers = new ScramjetHeaders();
 		for (const [key, value] of request.headers.entries()) {

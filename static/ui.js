@@ -393,11 +393,13 @@ function BrowserApp() {
 		if (frame.__novaAttached) return;
 		frame.addEventListener("urlchange", (e) => {
 			if (!e.url) return;
-			const tab = window.novaTabs.tabs.find(t => t.id === tabId);
-			if (!tab) return;
-			tab.url = e.url;
-			tab.initialized = true;
-			const display = extractDisplayUrl(e.url);
+        const tab = window.novaTabs.tabs.find(t => t.id === tabId);
+        if (!tab) return;
+        const display = extractDisplayUrl(e.url);
+        if (display) {
+            tab.url = display; // store destination URL for future navigations
+        }
+        tab.initialized = true;
 			if (display) {
 				try { tab.title = new URL(display).hostname || 'NovaNet'; } catch { tab.title = 'NovaNet'; }
 				if (window.novaTabs.activeTabId === tabId) {
