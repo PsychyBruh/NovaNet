@@ -193,11 +193,21 @@ export async function handleFetch(
 			if (r) return r;
 		}
     if (url.origin === new URL(request.url).origin) {
-      // Fallback: some sites leak proxied URLs back into fetch(). Rebase against decoded referrer origin.
+      // Fallback A: rebase against decoded referrer origin
       if (request.referrer && request.referrer.includes(config.prefix)) {
         try {
           const ref = new URL(unrewriteUrl(request.referrer));
           url = new URL(url.pathname + url.search + url.hash, ref.origin);
+        } catch {}
+      }
+      // Fallback B: rebase against the active client page origin
+      if (url.origin === new URL(request.url).origin && client) {
+        try {
+          const cu = new URL(client.url);
+          if (cu.pathname.startsWith(config.prefix)) {
+            const decodedClient = new URL(unrewriteUrl(client.url));
+            url = new URL(url.pathname + url.search + url.hash, decodedClient.origin);
+          }
         } catch {}
       }
       if (url.origin === new URL(request.url).origin) {
