@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, shrink-to-fit=no"
+		/>
+		<title>NovaNet - Secure Web Proxy</title>
+
+		<link rel="shortcut icon" content="favicon.webp" />
+
+		<link rel="stylesheet" href="index.css" />
+		<script src="/scram/scramjet.all.js"></script>
+		<script src="baremux/index.js" defer></script>
+		<script src="epoxy/index.js" defer></script>
+		<script src="register-sw.js" defer></script>
+		<script src="search.js" defer></script>
+		<script src="index.js" defer></script>
+	</head>
+
+	<body>
+		<!-- Tab Bar -->
+		<div class="tab-bar">
+			<div class="tabs-container">
+				<div class="tab active" data-tab-id="home">
+					<span class="tab-title">Home</span>
+					<button class="tab-close" onclick="closeTab(event, 'home')">×</button>
+				</div>
+				<button class="new-tab-btn" onclick="createNewTab()" title="New Tab">+</button>
+			</div>
+		</div>
+
+		<!-- Address Bar -->
+		<div class="address-bar">
+			<div class="nav-buttons">
+				<button class="nav-btn" onclick="goBack()" title="Back">←</button>
+				<button class="nav-btn" onclick="goForward()" title="Forward">→</button>
+				<button class="nav-btn" onclick="refresh()" title="Refresh">↻</button>
+			</div>
+			<form id="nn-form" class="address-form">
+				<input
+					id="nn-search-engine"
+					value="https://www.google.com/search?q=%s"
+					type="hidden"
+				/>
+				<input 
+					id="nn-address" 
+					type="text" 
+					placeholder="Search the web freely or enter a URL" 
+					autocomplete="off"
+				/>
+				<button type="submit" class="go-btn">Go</button>
+			</form>
+			<div class="security-indicator">
+				<span class="security-text">Secure</span>
+			</div>
+		</div>
+
+		<!-- Main Content Area -->
+		<div class="main-content">
+			<!-- Home Tab Content -->
+			<div id="tab-home" class="tab-panel active">
+				<div class="welcome-screen">
+					<div class="logo-section">
+						<div class="logo-container">
+							<h1>NovaNet</h1>
+							<p class="tagline">Secure Web Proxy</p>
+						</div>
+					</div>
+					
+					<div class="description">
+						<p>
+							NovaNet is an advanced web proxy designed to bypass internet censorship, 
+							evade arbitrary web browser restrictions, and provide secure, private browsing.
+						</p>
+					</div>
+
+					<div class="quick-links">
+						<h3>Quick Access</h3>
+						<div class="links-grid">
+							<a href="#" class="quick-link" onclick="navigateTo('https://google.com')">
+								<span>Google</span>
+							</a>
+							<a href="#" class="quick-link" onclick="navigateTo('https://youtube.com')">
+								<span>YouTube</span>
+							</a>
+							<a href="#" class="quick-link" onclick="navigateTo('https://twitter.com')">
+								<span>Twitter</span>
+							</a>
+							<a href="#" class="quick-link" onclick="navigateTo('https://reddit.com')">
+								<span>Reddit</span>
+							</a>
+							<a href="#" class="quick-link" onclick="navigateTo('https://discord.com')">
+								<span>Discord</span>
+							</a>
+							<a href="#" class="quick-link" onclick="navigateTo('https://instagram.com')">
+								<span>Instagram</span>
+							</a>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Error Display -->
+			<div class="error-container" id="nn-error-container" style="display: none;">
+				<div class="error-content">
+					<p id="nn-error"></p>
+					<pre id="nn-error-code"></pre>
+				</div>
+			</div>
+		</div>
+
+		<!-- Hidden iframe for proxied content -->
+		<iframe style="display: none" id="nn-frame"></iframe>
+	</body>
+</html>
