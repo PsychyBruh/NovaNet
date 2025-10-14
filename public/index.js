@@ -320,8 +320,22 @@ class TabManager {
 			try {
 				const iframe = document.getElementById(`nn-frame-${tabId}`);
 				if (iframe && iframe.contentDocument) {
-					const currentUrl = iframe.contentDocument.location.href;
+					let currentUrl = iframe.contentDocument.location.href;
 					if (currentUrl && currentUrl !== 'about:blank') {
+						// Clean up the URL - remove proxy encoding if present
+						try {
+							if (currentUrl.includes('/scramjet/')) {
+								const urlMatch = currentUrl.match(/\/scramjet\/(.+)$/);
+								if (urlMatch) {
+									currentUrl = decodeURIComponent(urlMatch[1]);
+									if (currentUrl.includes('%')) {
+										currentUrl = decodeURIComponent(currentUrl);
+									}
+								}
+							}
+						} catch (error) {
+							console.warn('Error cleaning URL in switchToTab:', error);
+						}
 						address.value = currentUrl;
 					}
 				}
@@ -622,8 +636,26 @@ async function navigateToUrl(url, tabId = null) {
 		// Check if message is from our iframe
 		if (event.source === iframe.contentWindow) {
 			if (event.data.type === 'urlChange') {
-				const newUrl = event.data.url;
+				let newUrl = event.data.url;
 				const newTitle = event.data.title;
+				
+				// Clean up the URL - remove proxy encoding if present
+				try {
+					// If the URL contains our proxy encoding, extract the original URL
+					if (newUrl.includes('/scramjet/')) {
+						const urlMatch = newUrl.match(/\/scramjet\/(.+)$/);
+						if (urlMatch) {
+							// Decode the URL
+							newUrl = decodeURIComponent(urlMatch[1]);
+							// If it's still encoded, decode again
+							if (newUrl.includes('%')) {
+								newUrl = decodeURIComponent(newUrl);
+							}
+						}
+					}
+				} catch (error) {
+					console.warn('Error cleaning URL:', error);
+				}
 				
 				// Update tab URL and title
 				tabManager.updateTabUrl(targetTabId, newUrl);
@@ -758,8 +790,26 @@ function setupUrlMonitoring(iframe, tabId, domain) {
 			const iframeDoc = iframe.contentDocument;
 			if (!iframeDoc) return;
 			
-			const currentUrl = iframeDoc.location.href;
+			let currentUrl = iframeDoc.location.href;
 			const currentTitle = iframeDoc.title;
+			
+			// Clean up the URL - remove proxy encoding if present
+			try {
+				// If the URL contains our proxy encoding, extract the original URL
+				if (currentUrl.includes('/scramjet/')) {
+					const urlMatch = currentUrl.match(/\/scramjet\/(.+)$/);
+					if (urlMatch) {
+						// Decode the URL
+						currentUrl = decodeURIComponent(urlMatch[1]);
+						// If it's still encoded, decode again
+						if (currentUrl.includes('%')) {
+							currentUrl = decodeURIComponent(currentUrl);
+						}
+					}
+				}
+			} catch (error) {
+				console.warn('Error cleaning URL in updateUrlAndTitle:', error);
+			}
 			
 			// Only update if URL or title has changed
 			if (currentUrl !== lastUrl || currentTitle !== lastTitle) {
