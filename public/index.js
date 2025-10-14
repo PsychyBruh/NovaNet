@@ -600,7 +600,7 @@ async function navigateToUrl(url, tabId = null) {
 							
 							console.error = function(...args) {
 								const message = args.join(' ');
-								// Suppress ALL Instagram-related errors
+								// Suppress ALL Instagram-related errors and proxy infrastructure errors
 								if (message.includes('LSPlatformRealtimeTransport') ||
 									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
 									message.includes('RE_EXN_ID') ||
@@ -614,7 +614,17 @@ async function navigateToUrl(url, tabId = null) {
 									message.includes('client.ts:571') ||
 									message.includes('POST') && message.includes('mqtt') ||
 									message.includes('404 (Not Found)') ||
-									message.includes('edge-chat.instagram.com')) {
+									message.includes('edge-chat.instagram.com') ||
+									message.includes('Hyper client: hyper_util::client::legacy::Error') ||
+									message.includes('Wisp(MuxTaskEnded)') ||
+									message.includes('Multiplexor task ended') ||
+									message.includes('ERROR FROM SERVICE WORKER FETCH') ||
+									message.includes('fetch.ts:364') ||
+									message.includes('fetch.ts:365') ||
+									message.includes('epoxy/index.mjs') ||
+									message.includes('sw.js:') ||
+									message.includes('500 (Internal Server Error)') ||
+									message.includes('MuxTaskEnded')) {
 									return; // Suppress these errors
 								}
 								originalConsoleError.apply(console, args);
@@ -628,7 +638,17 @@ async function navigateToUrl(url, tabId = null) {
 									message.includes('MQTT') ||
 									message.includes('edge-chat.instagram.com') ||
 									message.includes('err.ts:33') ||
-									message.includes('CAUGHT ERROR')) {
+									message.includes('CAUGHT ERROR') ||
+									message.includes('Hyper client: hyper_util::client::legacy::Error') ||
+									message.includes('Wisp(MuxTaskEnded)') ||
+									message.includes('Multiplexor task ended') ||
+									message.includes('ERROR FROM SERVICE WORKER FETCH') ||
+									message.includes('fetch.ts:') ||
+									message.includes('epoxy/index.mjs') ||
+									message.includes('sw.js:') ||
+									message.includes('500 (Internal Server Error)') ||
+									message.includes('MuxTaskEnded') ||
+									message.includes('Domain cookies is not a Map')) {
 									return; // Suppress these warnings
 								}
 								originalConsoleWarn.apply(console, args);
@@ -639,7 +659,16 @@ async function navigateToUrl(url, tabId = null) {
 								if (message.includes('LSPlatformRealtimeTransport') ||
 									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
 									message.includes('err.ts:33') ||
-									message.includes('CAUGHT ERROR')) {
+									message.includes('CAUGHT ERROR') ||
+									message.includes('Hyper client: hyper_util::client::legacy::Error') ||
+									message.includes('Wisp(MuxTaskEnded)') ||
+									message.includes('Multiplexor task ended') ||
+									message.includes('ERROR FROM SERVICE WORKER FETCH') ||
+									message.includes('fetch.ts:') ||
+									message.includes('epoxy/index.mjs') ||
+									message.includes('sw.js:') ||
+									message.includes('500 (Internal Server Error)') ||
+									message.includes('MuxTaskEnded')) {
 									return; // Suppress these logs
 								}
 								originalConsoleLog.apply(console, args);
@@ -753,7 +782,17 @@ async function navigateToUrl(url, tabId = null) {
 											message.includes('client.ts:571') ||
 											message.includes('POST') && message.includes('mqtt') ||
 											message.includes('404 (Not Found)') ||
-											message.includes('edge-chat.instagram.com')) {
+											message.includes('edge-chat.instagram.com') ||
+											message.includes('Hyper client: hyper_util::client::legacy::Error') ||
+											message.includes('Wisp(MuxTaskEnded)') ||
+											message.includes('Multiplexor task ended') ||
+											message.includes('ERROR FROM SERVICE WORKER FETCH') ||
+											message.includes('fetch.ts:364') ||
+											message.includes('fetch.ts:365') ||
+											message.includes('epoxy/index.mjs') ||
+											message.includes('sw.js:') ||
+											message.includes('500 (Internal Server Error)') ||
+											message.includes('MuxTaskEnded')) {
 											return;
 										}
 										originalConsole.error.apply(originalConsole, args);
@@ -763,7 +802,17 @@ async function navigateToUrl(url, tabId = null) {
 										if (message.includes('LSPlatformRealtimeTransport') ||
 											message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
 											message.includes('err.ts:33') ||
-											message.includes('CAUGHT ERROR')) {
+											message.includes('CAUGHT ERROR') ||
+											message.includes('Hyper client: hyper_util::client::legacy::Error') ||
+											message.includes('Wisp(MuxTaskEnded)') ||
+											message.includes('Multiplexor task ended') ||
+											message.includes('ERROR FROM SERVICE WORKER FETCH') ||
+											message.includes('fetch.ts:') ||
+											message.includes('epoxy/index.mjs') ||
+											message.includes('sw.js:') ||
+											message.includes('500 (Internal Server Error)') ||
+											message.includes('MuxTaskEnded') ||
+											message.includes('Domain cookies is not a Map')) {
 											return;
 										}
 										originalConsole.warn.apply(originalConsole, args);
@@ -773,7 +822,16 @@ async function navigateToUrl(url, tabId = null) {
 										if (message.includes('LSPlatformRealtimeTransport') ||
 											message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
 											message.includes('err.ts:33') ||
-											message.includes('CAUGHT ERROR')) {
+											message.includes('CAUGHT ERROR') ||
+											message.includes('Hyper client: hyper_util::client::legacy::Error') ||
+											message.includes('Wisp(MuxTaskEnded)') ||
+											message.includes('Multiplexor task ended') ||
+											message.includes('ERROR FROM SERVICE WORKER FETCH') ||
+											message.includes('fetch.ts:') ||
+											message.includes('epoxy/index.mjs') ||
+											message.includes('sw.js:') ||
+											message.includes('500 (Internal Server Error)') ||
+											message.includes('MuxTaskEnded')) {
 											return;
 										}
 										originalConsole.log.apply(originalConsole, args);
@@ -783,7 +841,7 @@ async function navigateToUrl(url, tabId = null) {
 								configurable: false
 							});
 							
-							// Add global error handler for Instagram
+							// Add global error handler for Instagram and proxy errors
 							window.addEventListener('error', function(event) {
 								const message = event.message || '';
 								if (message.includes('LSPlatformRealtimeTransport') ||
@@ -792,7 +850,16 @@ async function navigateToUrl(url, tabId = null) {
 									message.includes('MQTT') ||
 									message.includes('edge-chat.instagram.com') ||
 									message.includes('err.ts:33') ||
-									message.includes('CAUGHT ERROR')) {
+									message.includes('CAUGHT ERROR') ||
+									message.includes('Hyper client: hyper_util::client::legacy::Error') ||
+									message.includes('Wisp(MuxTaskEnded)') ||
+									message.includes('Multiplexor task ended') ||
+									message.includes('ERROR FROM SERVICE WORKER FETCH') ||
+									message.includes('fetch.ts:') ||
+									message.includes('epoxy/index.mjs') ||
+									message.includes('sw.js:') ||
+									message.includes('500 (Internal Server Error)') ||
+									message.includes('MuxTaskEnded')) {
 									event.preventDefault();
 									event.stopPropagation();
 									return false;
@@ -808,7 +875,16 @@ async function navigateToUrl(url, tabId = null) {
 									reason.toString().includes('Relay(') ||
 									reason.toString().includes('MQTT') ||
 									reason.toString().includes('err.ts:33') ||
-									reason.toString().includes('CAUGHT ERROR')
+									reason.toString().includes('CAUGHT ERROR') ||
+									reason.toString().includes('Hyper client: hyper_util::client::legacy::Error') ||
+									reason.toString().includes('Wisp(MuxTaskEnded)') ||
+									reason.toString().includes('Multiplexor task ended') ||
+									reason.toString().includes('ERROR FROM SERVICE WORKER FETCH') ||
+									reason.toString().includes('fetch.ts:') ||
+									reason.toString().includes('epoxy/index.mjs') ||
+									reason.toString().includes('sw.js:') ||
+									reason.toString().includes('500 (Internal Server Error)') ||
+									reason.toString().includes('MuxTaskEnded')
 								)) {
 									event.preventDefault();
 									return false;
