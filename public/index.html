@@ -55,6 +55,7 @@
 			<div class="security-indicator">
 				<span class="security-text">Secure</span>
 			</div>
+			<button class="settings-btn" onclick="toggleSettings()" title="Settings">⚙</button>
 		</div>
 
 		<!-- Main Content Area -->
@@ -107,6 +108,50 @@
 				<div class="error-content">
 					<p id="nn-error"></p>
 					<pre id="nn-error-code"></pre>
+				</div>
+			</div>
+		</div>
+
+		<!-- Settings Panel -->
+		<div id="settings-panel" class="settings-panel" style="display: none;">
+			<div class="settings-content">
+				<div class="settings-header">
+					<h3>Settings</h3>
+					<button class="close-settings" onclick="toggleSettings()">×</button>
+				</div>
+				<div class="settings-body">
+					<div class="settings-section">
+						<h4>Cookie Management</h4>
+						<div class="cookie-info">
+							<p>Cookies are automatically saved to keep you logged in across sessions.</p>
+							<div class="cookie-stats">
+								<span id="cookie-count">0 cookies stored</span>
+							</div>
+						</div>
+						<div class="cookie-actions">
+							<button class="btn btn-secondary" onclick="viewCookies()">View Cookies</button>
+							<button class="btn btn-danger" onclick="clearAllCookies()">Clear All Cookies</button>
+						</div>
+					</div>
+					<div class="settings-section">
+						<h4>Privacy</h4>
+						<div class="privacy-info">
+							<p>NovaNet stores cookies locally on your device to maintain login sessions. No data is sent to external servers.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Cookie Viewer Modal -->
+		<div id="cookie-modal" class="cookie-modal" style="display: none;">
+			<div class="cookie-modal-content">
+				<div class="cookie-modal-header">
+					<h3>Stored Cookies</h3>
+					<button class="close-cookie-modal" onclick="closeCookieModal()">×</button>
+				</div>
+				<div class="cookie-modal-body">
+					<div id="cookie-list"></div>
 				</div>
 			</div>
 		</div>

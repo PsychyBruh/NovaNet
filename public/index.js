@@ -7,6 +7,167 @@ let tabs = new Map();
 let history = new Map();
 let currentHistoryIndex = new Map();
 
+// Cookie Management System
+class CookieManager {
+	constructor() {
+		this.cookieStore = new Map();
+		this.loadCookies();
+	}
+
+	// Load cookies from localStorage
+	loadCookies() {
+		try {
+			const stored = localStorage.getItem('novanet_cookies');
+			if (stored) {
+				const parsed = JSON.parse(stored);
+				this.cookieStore = new Map(Object.entries(parsed));
+			}
+		} catch (error) {
+			console.warn('Failed to load cookies:', error);
+		}
+	}
+
+	// Save cookies to localStorage
+	saveCookies() {
+		try {
+			const obj = Object.fromEntries(this.cookieStore);
+			localStorage.setItem('novanet_cookies', JSON.stringify(obj));
+		} catch (error) {
+			console.warn('Failed to save cookies:', error);
+		}
+	}
+
+	// Set a cookie
+	setCookie(domain, name, value, options = {}) {
+		if (!this.cookieStore.has(domain)) {
+			this.cookieStore.set(domain, new Map());
+		}
+		
+		const domainCookies = this.cookieStore.get(domain);
+		domainCookies.set(name, {
+			value: value,
+			domain: domain,
+			path: options.path || '/',
+			expires: options.expires,
+			secure: options.secure || false,
+			httpOnly: options.httpOnly || false,
+			sameSite: options.sameSite || 'Lax'
+		});
+		
+		this.saveCookies();
+	}
+
+	// Get a cookie
+	getCookie(domain, name) {
+		const domainCookies = this.cookieStore.get(domain);
+		if (!domainCookies) return null;
+		
+		const cookie = domainCookies.get(name);
+		if (!cookie) return null;
+		
+		// Check if cookie has expired
+		if (cookie.expires && new Date() > new Date(cookie.expires)) {
+			domainCookies.delete(name);
+			this.saveCookies();
+			return null;
+		}
+		
+		return cookie.value;
+	}
+
+	// Get all cookies for a domain
+	getCookiesForDomain(domain) {
+		const domainCookies = this.cookieStore.get(domain);
+		if (!domainCookies) return {};
+		
+		const cookies = {};
+		for (const [name, cookie] of domainCookies) {
+			// Check if cookie has expired
+			if (cookie.expires && new Date() > new Date(cookie.expires)) {
+				domainCookies.delete(name);
+				continue;
+			}
+			cookies[name] = cookie.value;
+		}
+		
+		this.saveCookies();
+		return cookies;
+	}
+
+	// Delete a cookie
+	deleteCookie(domain, name) {
+		const domainCookies = this.cookieStore.get(domain);
+		if (domainCookies) {
+			domainCookies.delete(name);
+			this.saveCookies();
+		}
+	}
+
+	// Clear all cookies
+	clearAllCookies() {
+		this.cookieStore.clear();
+		this.saveCookies();
+	}
+
+	// Get cookie string for requests
+	getCookieString(domain) {
+		const cookies = this.getCookiesForDomain(domain);
+		return Object.entries(cookies)
+			.map(([name, value]) => `${name}=${value}`)
+			.join('; ');
+	}
+
+	// Parse cookies from response headers
+	parseSetCookieHeaders(domain, setCookieHeaders) {
+		if (!setCookieHeaders) return;
+		
+		const headers = Array.isArray(setCookieHeaders) ? setCookieHeaders : [setCookieHeaders];
+		
+		headers.forEach(header => {
+			const parts = header.split(';');
+			const [nameValue] = parts;
+			const [name, value] = nameValue.split('=');
+			
+			if (!name || !value) return;
+			
+			const options = {};
+			parts.slice(1).forEach(part => {
+				const [key, val] = part.trim().split('=');
+				const keyLower = key.toLowerCase();
+				
+				switch (keyLower) {
+					case 'domain':
+						options.domain = val;
+						break;
+					case 'path':
+						options.path = val;
+						break;
+					case 'expires':
+						options.expires = val;
+						break;
+					case 'max-age':
+						options.expires = new Date(Date.now() + parseInt(val) * 1000).toUTCString();
+						break;
+					case 'secure':
+						options.secure = true;
+						break;
+					case 'httponly':
+						options.httpOnly = true;
+						break;
+					case 'samesite':
+						options.sameSite = val;
+						break;
+				}
+			});
+			
+			this.setCookie(domain, name.trim(), value.trim(), options);
+		});
+	}
+}
+
+// Initialize cookie manager
+const cookieManager = new CookieManager();
+
 // DOM elements
 const form = document.getElementById("nn-form");
 const address = document.getElementById("nn-address");
@@ -147,12 +308,25 @@ class TabManager {
 			tabContent.classList.add('active');
 			this.currentTabId = tabId;
 			
-			// Update address bar
+			// Update address bar with current URL
 			const tab = this.tabs.get(tabId);
 			if (tab && tab.url) {
 				address.value = tab.url;
 			} else {
 				address.value = '';
+			}
+			
+			// Try to get the current URL from the iframe if available
+			try {
+				const iframe = document.getElementById(`nn-frame-${tabId}`);
+				if (iframe && iframe.contentDocument) {
+					const currentUrl = iframe.contentDocument.location.href;
+					if (currentUrl && currentUrl !== 'about:blank') {
+						address.value = currentUrl;
+					}
+				}
+			} catch (error) {
+				// Cross-origin restrictions - use stored URL
 			}
 		}
 	}
@@ -283,6 +457,7 @@ async function navigateToUrl(url, tabId = null) {
 	}
 
 	const searchUrl = search(url, searchEngine.value);
+	const domain = new URL(searchUrl).hostname;
 	
 	// Add to history
 	tabManager.addToHistory(targetTabId, url);
@@ -318,23 +493,300 @@ async function navigateToUrl(url, tabId = null) {
 		}
 	}
 	
-	// Set up iframe load handler
+	// Set up iframe load handler with cookie management and URL monitoring
 	iframe.onload = () => {
 		tabManager.updateTabTitle(targetTabId, iframe.contentDocument?.title || url);
 		const tab = tabManager.tabs.get(targetTabId);
 		if (tab) {
 			tab.loading = false;
 		}
+		
+		// Try to inject cookies into the iframe
+		try {
+			const cookies = cookieManager.getCookieString(domain);
+			if (cookies && iframe.contentDocument) {
+				// Set cookies in the iframe's document
+				document.cookie = cookies;
+			}
+			
+			// Inject URL monitoring script into iframe
+			if (iframe.contentDocument) {
+				const script = iframe.contentDocument.createElement('script');
+				script.textContent = `
+					(function() {
+						let lastUrl = window.location.href;
+						let lastTitle = document.title;
+						
+						function checkUrlChange() {
+							const currentUrl = window.location.href;
+							const currentTitle = document.title;
+							
+							if (currentUrl !== lastUrl || currentTitle !== lastTitle) {
+								lastUrl = currentUrl;
+								lastTitle = currentTitle;
+								
+								// Send message to parent window
+								window.parent.postMessage({
+									type: 'urlChange',
+									url: currentUrl,
+									title: currentTitle
+								}, '*');
+							}
+						}
+						
+						// Check for URL changes periodically
+						setInterval(checkUrlChange, 500);
+						
+						// Also listen for navigation events
+						window.addEventListener('popstate', checkUrlChange);
+						window.addEventListener('pushstate', checkUrlChange);
+						window.addEventListener('replacestate', checkUrlChange);
+						
+						// Override history methods to catch programmatic navigation
+						const originalPushState = history.pushState;
+						const originalReplaceState = history.replaceState;
+						
+						history.pushState = function() {
+							originalPushState.apply(history, arguments);
+							setTimeout(checkUrlChange, 100);
+						};
+						
+						history.replaceState = function() {
+							originalReplaceState.apply(history, arguments);
+							setTimeout(checkUrlChange, 100);
+						};
+					})();
+				`;
+				iframe.contentDocument.head.appendChild(script);
+			}
+		} catch (error) {
+			console.warn('Could not inject scripts into iframe:', error);
+		}
+		
+		// Set up URL monitoring for this iframe
+		setupUrlMonitoring(iframe, targetTabId, domain);
+		
+		// Add iframe error handling for better connection stability
+		iframe.onerror = () => {
+			console.warn('Iframe load error, attempting to reload...');
+			setTimeout(() => {
+				if (iframe.src) {
+					iframe.src = iframe.src; // Reload the iframe
+				}
+			}, 2000);
+		};
+		
+		// Monitor iframe connection health
+		const healthCheck = setInterval(() => {
+			try {
+				if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
+					// Iframe is healthy
+					return;
+				}
+			} catch (error) {
+				// Cross-origin or other issues - this is normal for some sites
+			}
+		}, 5000);
+		
+		// Clean up health check when iframe is unloaded
+		iframe.addEventListener('unload', () => {
+			clearInterval(healthCheck);
+		});
 	};
 	
-	// Configure connection and load URL
-	let wispUrl = (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/";
-	if ((await connection.getTransport()) !== "/epoxy/index.mjs") {
-		await connection.setTransport("/epoxy/index.mjs", [{ wisp: wispUrl }]);
-	}
+	// Set up postMessage listener for URL updates from iframe
+	window.addEventListener('message', (event) => {
+		// Check if message is from our iframe
+		if (event.source === iframe.contentWindow) {
+			if (event.data.type === 'urlChange') {
+				const newUrl = event.data.url;
+				const newTitle = event.data.title;
+				
+				// Update tab URL and title
+				tabManager.updateTabUrl(targetTabId, newUrl);
+				tabManager.updateTabTitle(targetTabId, newTitle || 'Loading...');
+				
+				// Update address bar if this is the active tab
+				if (tabManager.currentTabId === targetTabId) {
+					address.value = newUrl;
+				}
+				
+				// Add to history
+				tabManager.addToHistory(targetTabId, newUrl);
+			}
+		}
+	});
 	
-	const sjEncode = scramjet.encodeUrl.bind(scramjet);
-	iframe.src = sjEncode(searchUrl);
+	// Set up connection retry mechanism for better stability
+	let connectionRetries = 0;
+	const maxRetries = 3;
+	
+	const establishConnection = async () => {
+		try {
+			let wispUrl = (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/";
+			if ((await connection.getTransport()) !== "/epoxy/index.mjs") {
+				await connection.setTransport("/epoxy/index.mjs", [{ wisp: wispUrl }]);
+			}
+			
+			// Add connection health check
+			connection.addEventListener('error', () => {
+				console.warn('Connection error detected, attempting to reconnect...');
+				if (connectionRetries < maxRetries) {
+					connectionRetries++;
+					setTimeout(establishConnection, 2000);
+				}
+			});
+			
+			// Special handling for social media sites
+			const socialMediaSites = ['instagram.com', 'facebook.com', 'twitter.com', 'discord.com', 'reddit.com'];
+			const isSocialMedia = socialMediaSites.some(site => domain.includes(site));
+			
+			if (isSocialMedia) {
+				// Add extra headers and settings for social media sites
+				iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox');
+				iframe.setAttribute('allow', 'camera; microphone; geolocation');
+			}
+			
+			// Load the URL
+			const sjEncode = scramjet.encodeUrl.bind(scramjet);
+			iframe.src = sjEncode(searchUrl);
+			
+			// Add connection monitoring for social media sites
+			if (isSocialMedia) {
+				const connectionMonitor = setInterval(() => {
+					try {
+						if (iframe.contentDocument && iframe.contentDocument.readyState === 'loading') {
+							// Still loading, check for network errors
+							setTimeout(() => {
+								if (iframe.contentDocument && iframe.contentDocument.readyState === 'loading') {
+									console.warn('Slow loading detected, checking connection...');
+									// Try to refresh the connection
+									if (connectionRetries < maxRetries) {
+										connectionRetries++;
+										iframe.src = sjEncode(searchUrl);
+									}
+								}
+							}, 10000); // Wait 10 seconds before checking
+						}
+					} catch (error) {
+						// Cross-origin restrictions - this is normal
+					}
+				}, 5000);
+				
+				// Clean up monitor when iframe loads
+				iframe.addEventListener('load', () => {
+					clearInterval(connectionMonitor);
+				});
+			}
+			
+		} catch (error) {
+			console.error('Connection failed:', error);
+			if (connectionRetries < maxRetries) {
+				connectionRetries++;
+				setTimeout(establishConnection, 2000);
+			} else {
+				showError("Connection failed. Please try again.", error.toString());
+			}
+		}
+	};
+	
+	// Start connection
+	establishConnection();
+	
+	// Set up message listener for cookie updates from iframe
+	iframe.addEventListener('load', () => {
+		try {
+			// Listen for cookie changes from the iframe
+			const iframeDoc = iframe.contentDocument;
+			if (iframeDoc) {
+				// Monitor cookie changes
+				const originalSetCookie = iframeDoc.cookie;
+				const checkCookies = () => {
+					if (iframeDoc.cookie !== originalSetCookie) {
+						// Cookies have changed, update our storage
+						const newCookies = iframeDoc.cookie;
+						if (newCookies) {
+							const cookiePairs = newCookies.split(';');
+							cookiePairs.forEach(pair => {
+								const [name, value] = pair.trim().split('=');
+								if (name && value) {
+									cookieManager.setCookie(domain, name, value);
+								}
+							});
+						}
+					}
+				};
+				
+				// Check for cookie changes periodically
+				const cookieInterval = setInterval(checkCookies, 1000);
+				
+				// Clean up interval when iframe is unloaded
+				iframe.addEventListener('unload', () => {
+					clearInterval(cookieInterval);
+				});
+			}
+		} catch (error) {
+			console.warn('Could not monitor cookies in iframe:', error);
+		}
+	});
+}
+
+// URL Monitoring System
+function setupUrlMonitoring(iframe, tabId, domain) {
+	let lastUrl = '';
+	let lastTitle = '';
+	
+	// Function to update URL and title
+	const updateUrlAndTitle = () => {
+		try {
+			const iframeDoc = iframe.contentDocument;
+			if (!iframeDoc) return;
+			
+			const currentUrl = iframeDoc.location.href;
+			const currentTitle = iframeDoc.title;
+			
+			// Only update if URL or title has changed
+			if (currentUrl !== lastUrl || currentTitle !== lastTitle) {
+				lastUrl = currentUrl;
+				lastTitle = currentTitle;
+				
+				// Update tab URL and title
+				tabManager.updateTabUrl(tabId, currentUrl);
+				tabManager.updateTabTitle(tabId, currentTitle || 'Loading...');
+				
+				// Update address bar if this is the active tab
+				if (tabManager.currentTabId === tabId) {
+					address.value = currentUrl;
+				}
+				
+				// Add to history if URL changed
+				if (currentUrl !== lastUrl) {
+					tabManager.addToHistory(tabId, currentUrl);
+				}
+			}
+		} catch (error) {
+			// Cross-origin restrictions - this is expected for some sites
+			// We'll use a fallback method
+		}
+	};
+	
+	// Monitor URL changes using multiple methods
+	const urlMonitor = setInterval(() => {
+		updateUrlAndTitle();
+	}, 500); // Check every 500ms
+	
+	// Also listen for iframe navigation events
+	iframe.addEventListener('load', () => {
+		setTimeout(updateUrlAndTitle, 100); // Small delay to ensure content is loaded
+	});
+	
+	// Clean up when iframe is removed
+	const cleanup = () => {
+		clearInterval(urlMonitor);
+	};
+	
+	// Store cleanup function for later use
+	iframe._urlMonitorCleanup = cleanup;
 }
 
 function showError(message, code = '') {
@@ -379,6 +831,98 @@ document.addEventListener('keydown', (event) => {
 	}
 });
 
+// Settings Panel Functions
+function toggleSettings() {
+	const settingsPanel = document.getElementById('settings-panel');
+	const isVisible = settingsPanel.style.display !== 'none';
+	
+	if (isVisible) {
+		settingsPanel.style.display = 'none';
+	} else {
+		settingsPanel.style.display = 'block';
+		updateCookieCount();
+	}
+}
+
+function updateCookieCount() {
+	const totalCookies = Array.from(cookieManager.cookieStore.values())
+		.reduce((total, domainCookies) => total + domainCookies.size, 0);
+	
+	const cookieCountElement = document.getElementById('cookie-count');
+	if (cookieCountElement) {
+		cookieCountElement.textContent = `${totalCookies} cookies stored`;
+	}
+}
+
+function viewCookies() {
+	const cookieModal = document.getElementById('cookie-modal');
+	const cookieList = document.getElementById('cookie-list');
+	
+	// Clear existing content
+	cookieList.innerHTML = '';
+	
+	// Add cookies to the list
+	for (const [domain, domainCookies] of cookieManager.cookieStore) {
+		if (domainCookies.size === 0) continue;
+		
+		const domainDiv = document.createElement('div');
+		domainDiv.className = 'cookie-item';
+		
+		const domainHeader = document.createElement('div');
+		domainHeader.className = 'cookie-domain';
+		domainHeader.textContent = domain;
+		domainDiv.appendChild(domainHeader);
+		
+		for (const [name, cookie] of domainCookies) {
+			const cookieDiv = document.createElement('div');
+			cookieDiv.style.marginBottom = '10px';
+			
+			const cookieName = document.createElement('div');
+			cookieName.style.fontWeight = '500';
+			cookieName.style.color = 'var(--text-primary)';
+			cookieName.style.marginBottom = '4px';
+			cookieName.textContent = name;
+			cookieDiv.appendChild(cookieName);
+			
+			const cookieDetails = document.createElement('div');
+			cookieDetails.className = 'cookie-details';
+			cookieDetails.textContent = `Path: ${cookie.path} | Secure: ${cookie.secure ? 'Yes' : 'No'}`;
+			if (cookie.expires) {
+				cookieDetails.textContent += ` | Expires: ${new Date(cookie.expires).toLocaleString()}`;
+			}
+			cookieDiv.appendChild(cookieDetails);
+			
+			const cookieValue = document.createElement('div');
+			cookieValue.className = 'cookie-value';
+			cookieValue.textContent = cookie.value;
+			cookieDiv.appendChild(cookieValue);
+			
+			domainDiv.appendChild(cookieDiv);
+		}
+		
+		cookieList.appendChild(domainDiv);
+	}
+	
+	if (cookieList.children.length === 0) {
+		cookieList.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No cookies stored</p>';
+	}
+	
+	cookieModal.style.display = 'flex';
+}
+
+function closeCookieModal() {
+	const cookieModal = document.getElementById('cookie-modal');
+	cookieModal.style.display = 'none';
+}
+
+function clearAllCookies() {
+	if (confirm('Are you sure you want to clear all cookies? This will log you out of all websites.')) {
+		cookieManager.clearAllCookies();
+		updateCookieCount();
+		alert('All cookies have been cleared.');
+	}
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
 	// Set up initial home tab
@@ -393,4 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Initialize history for home tab
 	tabManager.history.set('home', []);
 	tabManager.currentHistoryIndex.set('home', -1);
+	
+	// Update cookie count on load
+	updateCookieCount();
 });
