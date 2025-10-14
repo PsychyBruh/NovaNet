@@ -44,15 +44,31 @@ class CookieManager {
 		}
 		
 		const domainCookies = this.cookieStore.get(domain);
-		domainCookies.set(name, {
-			value: value,
-			domain: domain,
-			path: options.path || '/',
-			expires: options.expires,
-			secure: options.secure || false,
-			httpOnly: options.httpOnly || false,
-			sameSite: options.sameSite || 'Lax'
-		});
+		
+		// Ensure domainCookies is a Map
+		if (!(domainCookies instanceof Map)) {
+			this.cookieStore.set(domain, new Map());
+			const newDomainCookies = this.cookieStore.get(domain);
+			newDomainCookies.set(name, {
+				value: value,
+				domain: domain,
+				path: options.path || '/',
+				expires: options.expires,
+				secure: options.secure || false,
+				httpOnly: options.httpOnly || false,
+				sameSite: options.sameSite || 'Lax'
+			});
+		} else {
+			domainCookies.set(name, {
+				value: value,
+				domain: domain,
+				path: options.path || '/',
+				expires: options.expires,
+				secure: options.secure || false,
+				httpOnly: options.httpOnly || false,
+				sameSite: options.sameSite || 'Lax'
+			});
+		}
 		
 		this.saveCookies();
 	}
@@ -60,7 +76,7 @@ class CookieManager {
 	// Get a cookie
 	getCookie(domain, name) {
 		const domainCookies = this.cookieStore.get(domain);
-		if (!domainCookies) return null;
+		if (!domainCookies || !(domainCookies instanceof Map)) return null;
 		
 		const cookie = domainCookies.get(name);
 		if (!cookie) return null;
@@ -78,7 +94,14 @@ class CookieManager {
 	// Get all cookies for a domain
 	getCookiesForDomain(domain) {
 		const domainCookies = this.cookieStore.get(domain);
-		if (!domainCookies || !domainCookies.entries) return {};
+		if (!domainCookies) return {};
+		
+		// Ensure domainCookies is a Map
+		if (!(domainCookies instanceof Map)) {
+			console.warn('Domain cookies is not a Map, recreating:', domain);
+			this.cookieStore.set(domain, new Map());
+			return {};
+		}
 		
 		const cookies = {};
 		try {
@@ -102,7 +125,7 @@ class CookieManager {
 	// Delete a cookie
 	deleteCookie(domain, name) {
 		const domainCookies = this.cookieStore.get(domain);
-		if (domainCookies) {
+		if (domainCookies && domainCookies instanceof Map) {
 			domainCookies.delete(name);
 			this.saveCookies();
 		}
