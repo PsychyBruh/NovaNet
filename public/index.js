@@ -765,6 +765,14 @@ async function navigateToUrl(url, tabId = null) {
 							}
 						}
 					}
+					
+					// Additional cleaning for Instagram to prevent same-origin detection
+					if (newUrl.includes('localhost:8080') || newUrl.includes('127.0.0.1:8080')) {
+						// Replace localhost with instagram.com to prevent same-origin detection
+						newUrl = newUrl.replace(/localhost:8080/g, 'www.instagram.com');
+						newUrl = newUrl.replace(/127\.0\.0\.1:8080/g, 'www.instagram.com');
+						newUrl = newUrl.replace(/http:\/\/www\.instagram\.com/g, 'https://www.instagram.com');
+					}
 				} catch (error) {
 					console.warn('Error cleaning URL:', error);
 				}
@@ -964,6 +972,14 @@ function setupUrlMonitoring(iframe, tabId, domain) {
 							currentUrl = decodeURIComponent(currentUrl);
 						}
 					}
+				}
+				
+				// Additional cleaning for Instagram to prevent same-origin detection
+				if (currentUrl.includes('localhost:8080') || currentUrl.includes('127.0.0.1:8080')) {
+					// Replace localhost with instagram.com to prevent same-origin detection
+					currentUrl = currentUrl.replace(/localhost:8080/g, 'www.instagram.com');
+					currentUrl = currentUrl.replace(/127\.0\.0\.1:8080/g, 'www.instagram.com');
+					currentUrl = currentUrl.replace(/http:\/\/www\.instagram\.com/g, 'https://www.instagram.com');
 				}
 			} catch (error) {
 				console.warn('Error cleaning URL in updateUrlAndTitle:', error);
