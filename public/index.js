@@ -226,6 +226,106 @@ scramjet.init();
 
 const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
 
+// Global error suppression - run immediately
+(function() {
+	// Override console methods immediately
+	const originalConsoleError = console.error;
+	const originalConsoleWarn = console.warn;
+	const originalConsoleLog = console.log;
+	
+	console.error = function(...args) {
+		const message = args.join(' ');
+		if (message.includes('LSPlatformRealtimeTransport') ||
+			message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+			message.includes('RE_EXN_ID') ||
+			message.includes('CAUGHT ERROR') ||
+			message.includes('err.ts:33') ||
+			message.includes('t.$scramerr') ||
+			message.includes('client.ts:571') ||
+			message.includes('POST') && message.includes('mqtt') ||
+			message.includes('404 (Not Found)') ||
+			message.includes('edge-chat.instagram.com') ||
+			message.includes('Promise {<pending>') ||
+			message.includes('displayName:') ||
+			message.includes('Relay(')) {
+			return;
+		}
+		originalConsoleError.apply(console, args);
+	};
+	
+	console.warn = function(...args) {
+		const message = args.join(' ');
+		if (message.includes('LSPlatformRealtimeTransport') ||
+			message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+			message.includes('err.ts:33') ||
+			message.includes('CAUGHT ERROR') ||
+			message.includes('client.ts:571') ||
+			message.includes('POST') && message.includes('mqtt') ||
+			message.includes('404 (Not Found)') ||
+			message.includes('edge-chat.instagram.com')) {
+			return;
+		}
+		originalConsoleWarn.apply(console, args);
+	};
+	
+	console.log = function(...args) {
+		const message = args.join(' ');
+		if (message.includes('LSPlatformRealtimeTransport') ||
+			message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+			message.includes('err.ts:33') ||
+			message.includes('CAUGHT ERROR')) {
+			return;
+		}
+		originalConsoleLog.apply(console, args);
+	};
+	
+	// Override Error constructor
+	const originalError = window.Error;
+	window.Error = function(message) {
+		if (message && (
+			message.includes('LSPlatformRealtimeTransport') ||
+			message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+			message.includes('err.ts:33') ||
+			message.includes('CAUGHT ERROR')
+		)) {
+			const silentError = new originalError('Silent error');
+			silentError.stack = '';
+			return silentError;
+		}
+		return new originalError(message);
+	};
+	
+	// Global error handlers
+	window.addEventListener('error', function(event) {
+		const message = event.message || '';
+		if (message.includes('LSPlatformRealtimeTransport') ||
+			message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+			message.includes('err.ts:33') ||
+			message.includes('CAUGHT ERROR') ||
+			message.includes('client.ts:571') ||
+			message.includes('POST') && message.includes('mqtt') ||
+			message.includes('404 (Not Found)') ||
+			message.includes('edge-chat.instagram.com')) {
+			event.preventDefault();
+			event.stopPropagation();
+			return false;
+		}
+	}, true);
+	
+	window.addEventListener('unhandledrejection', function(event) {
+		const reason = event.reason;
+		if (reason && (
+			reason.toString().includes('LSPlatformRealtimeTransport') ||
+			reason.toString().includes('IGDThreadDetailMainViewOffMsysQuery') ||
+			reason.toString().includes('err.ts:33') ||
+			reason.toString().includes('CAUGHT ERROR')
+		)) {
+			event.preventDefault();
+			return false;
+		}
+	});
+})();
+
 // Tab Management
 class TabManager {
 	constructor() {
@@ -559,6 +659,114 @@ async function navigateToUrl(url, tabId = null) {
 			}
 		} catch (error) {
 			console.warn('Could not inject cookies into iframe:', error);
+		}
+		
+		// Inject aggressive error suppression immediately
+		try {
+			const errorSuppressionScript = `
+				(function() {
+					// Override console methods immediately
+					const originalConsoleError = console.error;
+					const originalConsoleWarn = console.warn;
+					const originalConsoleLog = console.log;
+					
+					console.error = function(...args) {
+						const message = args.join(' ');
+						if (message.includes('LSPlatformRealtimeTransport') ||
+							message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+							message.includes('RE_EXN_ID') ||
+							message.includes('CAUGHT ERROR') ||
+							message.includes('err.ts:33') ||
+							message.includes('t.$scramerr') ||
+							message.includes('client.ts:571') ||
+							message.includes('POST') && message.includes('mqtt') ||
+							message.includes('404 (Not Found)') ||
+							message.includes('edge-chat.instagram.com') ||
+							message.includes('Promise {<pending>') ||
+							message.includes('displayName:') ||
+							message.includes('Relay(')) {
+							return;
+						}
+						originalConsoleError.apply(console, args);
+					};
+					
+					console.warn = function(...args) {
+						const message = args.join(' ');
+						if (message.includes('LSPlatformRealtimeTransport') ||
+							message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+							message.includes('err.ts:33') ||
+							message.includes('CAUGHT ERROR') ||
+							message.includes('client.ts:571') ||
+							message.includes('POST') && message.includes('mqtt') ||
+							message.includes('404 (Not Found)') ||
+							message.includes('edge-chat.instagram.com')) {
+							return;
+						}
+						originalConsoleWarn.apply(console, args);
+					};
+					
+					console.log = function(...args) {
+						const message = args.join(' ');
+						if (message.includes('LSPlatformRealtimeTransport') ||
+							message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+							message.includes('err.ts:33') ||
+							message.includes('CAUGHT ERROR')) {
+							return;
+						}
+						originalConsoleLog.apply(console, args);
+					};
+					
+					// Override Error constructor
+					const originalError = window.Error;
+					window.Error = function(message) {
+						if (message && (
+							message.includes('LSPlatformRealtimeTransport') ||
+							message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+							message.includes('err.ts:33') ||
+							message.includes('CAUGHT ERROR')
+						)) {
+							const silentError = new originalError('Silent error');
+							silentError.stack = '';
+							return silentError;
+						}
+						return new originalError(message);
+					};
+					
+					// Global error handlers
+					window.addEventListener('error', function(event) {
+						const message = event.message || '';
+						if (message.includes('LSPlatformRealtimeTransport') ||
+							message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+							message.includes('err.ts:33') ||
+							message.includes('CAUGHT ERROR') ||
+							message.includes('client.ts:571') ||
+							message.includes('POST') && message.includes('mqtt') ||
+							message.includes('404 (Not Found)') ||
+							message.includes('edge-chat.instagram.com')) {
+							event.preventDefault();
+							event.stopPropagation();
+							return false;
+						}
+					}, true);
+					
+					window.addEventListener('unhandledrejection', function(event) {
+						const reason = event.reason;
+						if (reason && (
+							reason.toString().includes('LSPlatformRealtimeTransport') ||
+							reason.toString().includes('IGDThreadDetailMainViewOffMsysQuery') ||
+							reason.toString().includes('err.ts:33') ||
+							reason.toString().includes('CAUGHT ERROR')
+						)) {
+							event.preventDefault();
+							return false;
+						}
+					});
+				})();
+			`;
+			
+			iframe.contentDocument.head.insertAdjacentHTML('beforeend', `<script>${errorSuppressionScript}</script>`);
+		} catch (error) {
+			console.warn('Could not inject error suppression script:', error);
 		}
 		
 		// Inject URL monitoring script into iframe
