@@ -601,34 +601,58 @@ async function navigateToUrl(url, tabId = null) {
 									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
 									message.includes('RE_EXN_ID') ||
 									message.includes('CAUGHT ERROR') ||
-									message.includes('attempted to fetch from same origin')) {
+									message.includes('attempted to fetch from same origin') ||
+									message.includes('Relay(') ||
+									message.includes('Promise {<pending>') ||
+									message.includes('displayName:') ||
+									message.includes('LSPlatformRealtimeTransport')) {
 									return; // Suppress these errors
 								}
 								originalConsoleError.apply(console, args);
+							};
+							
+							// Also suppress console.warn for Instagram errors
+							const originalConsoleWarn = console.warn;
+							console.warn = function(...args) {
+								const message = args.join(' ');
+								if (message.includes('LSPlatformRealtimeTransport') ||
+									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+									message.includes('Relay(') ||
+									message.includes('MQTT') ||
+									message.includes('edge-chat.instagram.com')) {
+									return; // Suppress these warnings
+								}
+								originalConsoleWarn.apply(console, args);
 							};
 							
 							// Override fetch to handle requests better
 							const originalFetch = window.fetch;
 							window.fetch = function(url, options) {
 								// Handle Instagram's MQTT endpoints
-								if (url.includes('edge-chat.instagram.com/mqtt')) {
+								if (url.includes('edge-chat.instagram.com/mqtt') || 
+									url.includes('mqtt') ||
+									url.includes('realtime') ||
+									url.includes('websocket')) {
 									return Promise.resolve(new Response('', {
 										status: 200,
 										statusText: 'OK',
 										headers: new Headers({
-											'Content-Type': 'text/plain'
+											'Content-Type': 'text/plain',
+											'Access-Control-Allow-Origin': '*',
+											'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+											'Access-Control-Allow-Headers': 'Content-Type'
 										})
 									}));
 								}
 								
 								// Prevent requests to localhost/proxy origin
 								if (url.includes('localhost:8080') || url.includes('127.0.0.1:8080')) {
-									console.warn('Blocked request to proxy origin:', url);
 									return Promise.resolve(new Response('', {
 										status: 200,
 										statusText: 'OK',
 										headers: new Headers({
-											'Content-Type': 'application/json'
+											'Content-Type': 'application/json',
+											'Access-Control-Allow-Origin': '*'
 										})
 									}));
 								}
@@ -641,10 +665,18 @@ async function navigateToUrl(url, tabId = null) {
 							XMLHttpRequest.prototype.open = function(method, url, ...args) {
 								// Block requests to localhost/proxy origin
 								if (url.includes('localhost:8080') || url.includes('127.0.0.1:8080')) {
-									console.warn('Blocked XHR request to proxy origin:', url);
 									this._blocked = true;
 									return;
 								}
+								
+								// Block MQTT/WebSocket requests
+								if (url.includes('edge-chat.instagram.com/mqtt') || 
+									url.includes('mqtt') ||
+									url.includes('realtime')) {
+									this._blocked = true;
+									return;
+								}
+								
 								return originalXHROpen.call(this, method, url, ...args);
 							};
 							
@@ -664,6 +696,34 @@ async function navigateToUrl(url, tabId = null) {
 								}
 								return originalXHRSend.call(this, data);
 							};
+							
+							// Add global error handler for Instagram
+							window.addEventListener('error', function(event) {
+								const message = event.message || '';
+								if (message.includes('LSPlatformRealtimeTransport') ||
+									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+									message.includes('Relay(') ||
+									message.includes('MQTT') ||
+									message.includes('edge-chat.instagram.com')) {
+									event.preventDefault();
+									event.stopPropagation();
+									return false;
+								}
+							}, true);
+							
+							// Add unhandled promise rejection handler
+							window.addEventListener('unhandledrejection', function(event) {
+								const reason = event.reason;
+								if (reason && (
+									reason.toString().includes('LSPlatformRealtimeTransport') ||
+									reason.toString().includes('IGDThreadDetailMainViewOffMsysQuery') ||
+									reason.toString().includes('Relay(') ||
+									reason.toString().includes('MQTT')
+								)) {
+									event.preventDefault();
+									return false;
+								}
+							});
 						}
 						
 						function checkUrlChange() {
