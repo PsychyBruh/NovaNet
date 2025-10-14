@@ -78,16 +78,21 @@ class CookieManager {
 	// Get all cookies for a domain
 	getCookiesForDomain(domain) {
 		const domainCookies = this.cookieStore.get(domain);
-		if (!domainCookies) return {};
+		if (!domainCookies || !domainCookies.entries) return {};
 		
 		const cookies = {};
-		for (const [name, cookie] of domainCookies) {
-			// Check if cookie has expired
-			if (cookie.expires && new Date() > new Date(cookie.expires)) {
-				domainCookies.delete(name);
-				continue;
+		try {
+			for (const [name, cookie] of domainCookies) {
+				// Check if cookie has expired
+				if (cookie.expires && new Date() > new Date(cookie.expires)) {
+					domainCookies.delete(name);
+					continue;
+				}
+				cookies[name] = cookie.value;
 			}
-			cookies[name] = cookie.value;
+		} catch (error) {
+			console.warn('Error iterating cookies for domain:', domain, error);
+			return {};
 		}
 		
 		this.saveCookies();
@@ -111,10 +116,17 @@ class CookieManager {
 
 	// Get cookie string for requests
 	getCookieString(domain) {
-		const cookies = this.getCookiesForDomain(domain);
-		return Object.entries(cookies)
-			.map(([name, value]) => `${name}=${value}`)
-			.join('; ');
+		try {
+			const cookies = this.getCookiesForDomain(domain);
+			if (!cookies || typeof cookies !== 'object') return '';
+			
+			return Object.entries(cookies)
+				.map(([name, value]) => `${name}=${value}`)
+				.join('; ');
+		} catch (error) {
+			console.warn('Error generating cookie string for domain:', domain, error);
+			return '';
+		}
 	}
 
 	// Parse cookies from response headers
@@ -522,8 +534,12 @@ async function navigateToUrl(url, tabId = null) {
 				// Set cookies in the iframe's document
 				document.cookie = cookies;
 			}
-			
-			// Inject URL monitoring script into iframe
+		} catch (error) {
+			console.warn('Could not inject cookies into iframe:', error);
+		}
+		
+		// Inject URL monitoring script into iframe
+		try {
 			if (iframe.contentDocument) {
 				const script = iframe.contentDocument.createElement('script');
 				script.textContent = `
@@ -531,8 +547,29 @@ async function navigateToUrl(url, tabId = null) {
 						let lastUrl = window.location.href;
 						let lastTitle = document.title;
 						
-						// Suppress Instagram WebSocket errors to prevent console spam
+						// Suppress Instagram WebSocket errors and hide proxy origin
 						if (window.location.hostname.includes('instagram.com')) {
+							// Hide the proxy origin from Instagram
+							Object.defineProperty(window, 'location', {
+								value: {
+									...window.location,
+									hostname: 'www.instagram.com',
+									host: 'www.instagram.com',
+									origin: 'https://www.instagram.com',
+									protocol: 'https:',
+									port: ''
+								},
+								writable: false,
+								configurable: false
+							});
+							
+							// Override document.domain to hide proxy
+							Object.defineProperty(document, 'domain', {
+								value: 'instagram.com',
+								writable: false,
+								configurable: false
+							});
+							
 							const originalConsoleError = console.error;
 							console.error = function(...args) {
 								const message = args.join(' ');
@@ -540,18 +577,18 @@ async function navigateToUrl(url, tabId = null) {
 								if (message.includes('LSPlatformRealtimeTransport.Timeout') ||
 									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
 									message.includes('RE_EXN_ID') ||
-									message.includes('CAUGHT ERROR')) {
+									message.includes('CAUGHT ERROR') ||
+									message.includes('attempted to fetch from same origin')) {
 									return; // Suppress these errors
 								}
 								originalConsoleError.apply(console, args);
 							};
 							
-							// Override fetch to handle WebSocket upgrade requests better
+							// Override fetch to handle requests better
 							const originalFetch = window.fetch;
 							window.fetch = function(url, options) {
 								// Handle Instagram's MQTT endpoints
 								if (url.includes('edge-chat.instagram.com/mqtt')) {
-									// Return a mock response for MQTT endpoints to prevent 404 errors
 									return Promise.resolve(new Response('', {
 										status: 200,
 										statusText: 'OK',
@@ -560,7 +597,49 @@ async function navigateToUrl(url, tabId = null) {
 										})
 									}));
 								}
+								
+								// Prevent requests to localhost/proxy origin
+								if (url.includes('localhost:8080') || url.includes('127.0.0.1:8080')) {
+									console.warn('Blocked request to proxy origin:', url);
+									return Promise.resolve(new Response('', {
+										status: 200,
+										statusText: 'OK',
+										headers: new Headers({
+											'Content-Type': 'application/json'
+										})
+									}));
+								}
+								
 								return originalFetch.apply(this, arguments);
+							};
+							
+							// Override XMLHttpRequest to prevent same-origin detection
+							const originalXHROpen = XMLHttpRequest.prototype.open;
+							XMLHttpRequest.prototype.open = function(method, url, ...args) {
+								// Block requests to localhost/proxy origin
+								if (url.includes('localhost:8080') || url.includes('127.0.0.1:8080')) {
+									console.warn('Blocked XHR request to proxy origin:', url);
+									this._blocked = true;
+									return;
+								}
+								return originalXHROpen.call(this, method, url, ...args);
+							};
+							
+							const originalXHRSend = XMLHttpRequest.prototype.send;
+							XMLHttpRequest.prototype.send = function(data) {
+								if (this._blocked) {
+									// Simulate successful response
+									setTimeout(() => {
+										if (this.onreadystatechange) {
+											this.readyState = 4;
+											this.status = 200;
+											this.responseText = '{}';
+											this.onreadystatechange();
+										}
+									}, 100);
+									return;
+								}
+								return originalXHRSend.call(this, data);
 							};
 						}
 						
@@ -712,9 +791,9 @@ async function navigateToUrl(url, tabId = null) {
 	const establishConnection = async () => {
 		try {
 			let wispUrl = (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/";
-			if ((await connection.getTransport()) !== "/epoxy/index.mjs") {
-				await connection.setTransport("/epoxy/index.mjs", [{ wisp: wispUrl }]);
-			}
+	if ((await connection.getTransport()) !== "/epoxy/index.mjs") {
+		await connection.setTransport("/epoxy/index.mjs", [{ wisp: wispUrl }]);
+	}
 			
 			// Enhanced connection settings for Instagram and social media
 			if (domain.includes('instagram.com')) {
@@ -768,14 +847,14 @@ async function navigateToUrl(url, tabId = null) {
 				// Add referrer policy for better compatibility
 				iframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
 				
-				// Add CSP headers for Instagram
+				// Instagram-specific settings (CSP removed to prevent iframe rejection)
 				if (domain.includes('instagram.com')) {
-					iframe.setAttribute('csp', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: *; connect-src 'self' https: wss: ws: *;");
+					// Additional Instagram-specific iframe settings can go here
 				}
 			}
 			
 			// Load the URL
-			const sjEncode = scramjet.encodeUrl.bind(scramjet);
+	const sjEncode = scramjet.encodeUrl.bind(scramjet);
 			iframe.src = sjEncode(searchUrl);
 			
 			// Add connection monitoring for social media sites
