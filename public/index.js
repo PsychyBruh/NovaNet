@@ -593,11 +593,15 @@ async function navigateToUrl(url, tabId = null) {
 								configurable: false
 							});
 							
+							// Override console methods completely for Instagram
 							const originalConsoleError = console.error;
+							const originalConsoleWarn = console.warn;
+							const originalConsoleLog = console.log;
+							
 							console.error = function(...args) {
 								const message = args.join(' ');
-								// Suppress specific Instagram WebSocket errors
-								if (message.includes('LSPlatformRealtimeTransport.Timeout') ||
+								// Suppress ALL Instagram-related errors
+								if (message.includes('LSPlatformRealtimeTransport') ||
 									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
 									message.includes('RE_EXN_ID') ||
 									message.includes('CAUGHT ERROR') ||
@@ -605,24 +609,40 @@ async function navigateToUrl(url, tabId = null) {
 									message.includes('Relay(') ||
 									message.includes('Promise {<pending>') ||
 									message.includes('displayName:') ||
-									message.includes('LSPlatformRealtimeTransport')) {
+									message.includes('err.ts:33') ||
+									message.includes('t.$scramerr') ||
+									message.includes('client.ts:571') ||
+									message.includes('POST') && message.includes('mqtt') ||
+									message.includes('404 (Not Found)') ||
+									message.includes('edge-chat.instagram.com')) {
 									return; // Suppress these errors
 								}
 								originalConsoleError.apply(console, args);
 							};
 							
-							// Also suppress console.warn for Instagram errors
-							const originalConsoleWarn = console.warn;
 							console.warn = function(...args) {
 								const message = args.join(' ');
 								if (message.includes('LSPlatformRealtimeTransport') ||
 									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
 									message.includes('Relay(') ||
 									message.includes('MQTT') ||
-									message.includes('edge-chat.instagram.com')) {
+									message.includes('edge-chat.instagram.com') ||
+									message.includes('err.ts:33') ||
+									message.includes('CAUGHT ERROR')) {
 									return; // Suppress these warnings
 								}
 								originalConsoleWarn.apply(console, args);
+							};
+							
+							console.log = function(...args) {
+								const message = args.join(' ');
+								if (message.includes('LSPlatformRealtimeTransport') ||
+									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+									message.includes('err.ts:33') ||
+									message.includes('CAUGHT ERROR')) {
+									return; // Suppress these logs
+								}
+								originalConsoleLog.apply(console, args);
 							};
 							
 							// Override fetch to handle requests better
@@ -697,6 +717,72 @@ async function navigateToUrl(url, tabId = null) {
 								return originalXHRSend.call(this, data);
 							};
 							
+							// Override Instagram's error handling system
+							const originalError = window.Error;
+							window.Error = function(message) {
+								if (message && (
+									message.includes('LSPlatformRealtimeTransport') ||
+									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+									message.includes('Relay(') ||
+									message.includes('MQTT') ||
+									message.includes('edge-chat.instagram.com') ||
+									message.includes('err.ts:33') ||
+									message.includes('CAUGHT ERROR')
+								)) {
+									// Return a silent error that won't be logged
+									const silentError = new originalError('Silent error');
+									silentError.stack = '';
+									return silentError;
+								}
+								return new originalError(message);
+							};
+							
+							// Override console methods at the prototype level
+							const originalConsole = window.console;
+							Object.defineProperty(window, 'console', {
+								value: {
+									...originalConsole,
+									error: function(...args) {
+										const message = args.join(' ');
+										if (message.includes('LSPlatformRealtimeTransport') ||
+											message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+											message.includes('RE_EXN_ID') ||
+											message.includes('CAUGHT ERROR') ||
+											message.includes('err.ts:33') ||
+											message.includes('t.$scramerr') ||
+											message.includes('client.ts:571') ||
+											message.includes('POST') && message.includes('mqtt') ||
+											message.includes('404 (Not Found)') ||
+											message.includes('edge-chat.instagram.com')) {
+											return;
+										}
+										originalConsole.error.apply(originalConsole, args);
+									},
+									warn: function(...args) {
+										const message = args.join(' ');
+										if (message.includes('LSPlatformRealtimeTransport') ||
+											message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+											message.includes('err.ts:33') ||
+											message.includes('CAUGHT ERROR')) {
+											return;
+										}
+										originalConsole.warn.apply(originalConsole, args);
+									},
+									log: function(...args) {
+										const message = args.join(' ');
+										if (message.includes('LSPlatformRealtimeTransport') ||
+											message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
+											message.includes('err.ts:33') ||
+											message.includes('CAUGHT ERROR')) {
+											return;
+										}
+										originalConsole.log.apply(originalConsole, args);
+									}
+								},
+								writable: false,
+								configurable: false
+							});
+							
 							// Add global error handler for Instagram
 							window.addEventListener('error', function(event) {
 								const message = event.message || '';
@@ -704,7 +790,9 @@ async function navigateToUrl(url, tabId = null) {
 									message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
 									message.includes('Relay(') ||
 									message.includes('MQTT') ||
-									message.includes('edge-chat.instagram.com')) {
+									message.includes('edge-chat.instagram.com') ||
+									message.includes('err.ts:33') ||
+									message.includes('CAUGHT ERROR')) {
 									event.preventDefault();
 									event.stopPropagation();
 									return false;
@@ -718,7 +806,9 @@ async function navigateToUrl(url, tabId = null) {
 									reason.toString().includes('LSPlatformRealtimeTransport') ||
 									reason.toString().includes('IGDThreadDetailMainViewOffMsysQuery') ||
 									reason.toString().includes('Relay(') ||
-									reason.toString().includes('MQTT')
+									reason.toString().includes('MQTT') ||
+									reason.toString().includes('err.ts:33') ||
+									reason.toString().includes('CAUGHT ERROR')
 								)) {
 									event.preventDefault();
 									return false;
