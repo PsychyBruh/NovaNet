@@ -569,11 +569,16 @@ async function navigateToUrl(url, tabId = null) {
 		// Add iframe error handling for better connection stability
 		iframe.onerror = () => {
 			console.warn('Iframe load error, attempting to reload...');
-			setTimeout(() => {
-				if (iframe.src) {
-					iframe.src = iframe.src; // Reload the iframe
-				}
-			}, 2000);
+			if (connectionRetries < maxRetries) {
+				connectionRetries++;
+				setTimeout(() => {
+					if (iframe.src) {
+						iframe.src = iframe.src; // Reload the iframe
+					}
+				}, 2000);
+			} else {
+				showError("Connection failed after multiple attempts. Please try again.", "");
+			}
 		};
 		
 		// Monitor iframe connection health
@@ -588,9 +593,27 @@ async function navigateToUrl(url, tabId = null) {
 			}
 		}, 5000);
 		
-		// Clean up health check when iframe is unloaded
+		// Set a timeout for iframe loading
+		const loadTimeout = setTimeout(() => {
+			if (iframe.contentDocument && iframe.contentDocument.readyState !== 'complete') {
+				console.warn('Iframe loading timeout, attempting to reload...');
+				if (connectionRetries < maxRetries) {
+					connectionRetries++;
+					iframe.src = iframe.src; // Reload the iframe
+				} else {
+					showError("Page took too long to load. Please try again.", "");
+				}
+			}
+		}, 30000); // 30 second timeout
+		
+		// Clean up health check and timeout when iframe loads or is unloaded
+		iframe.addEventListener('load', () => {
+			clearTimeout(loadTimeout);
+		});
+		
 		iframe.addEventListener('unload', () => {
 			clearInterval(healthCheck);
+			clearTimeout(loadTimeout);
 		});
 	};
 	
@@ -628,14 +651,7 @@ async function navigateToUrl(url, tabId = null) {
 				await connection.setTransport("/epoxy/index.mjs", [{ wisp: wispUrl }]);
 			}
 			
-			// Add connection health check
-			connection.addEventListener('error', () => {
-				console.warn('Connection error detected, attempting to reconnect...');
-				if (connectionRetries < maxRetries) {
-					connectionRetries++;
-					setTimeout(establishConnection, 2000);
-				}
-			});
+			// Connection health check will be handled by iframe error events
 			
 			// Special handling for social media sites
 			const socialMediaSites = ['instagram.com', 'facebook.com', 'twitter.com', 'discord.com', 'reddit.com'];
