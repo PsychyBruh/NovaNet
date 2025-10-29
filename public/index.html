@@ -15,6 +15,7 @@
 		<script src="baremux/index.js" defer></script>
 		<script src="epoxy/index.js" defer></script>
 		<script src="register-sw.js" defer></script>
+		<script src="config.js" defer></script>
 		<script src="search.js" defer></script>
 		<script src="index.js" defer></script>
 	</head>
@@ -158,5 +159,26 @@
 
 		<!-- Hidden iframe for proxied content -->
 		<iframe style="display: none" id="nn-frame"></iframe>
+
+		<!-- Lightweight Ad Modal -->
+		<div id="ad-modal" class="ad-modal" style="display: none;">
+			<div class="ad-modal-content" role="dialog" aria-modal="true" aria-labelledby="ad-modal-title">
+				<div class="ad-modal-header">
+					<h3 id="ad-modal-title">Support NovaNet</h3>
+					<button class="close-ad-modal" id="ad-close-btn" aria-label="Close ad">×</button>
+				</div>
+				<div class="ad-modal-body">
+					<!-- Replace this block with your ad provider snippet -->
+					<div class="ad-container">
+						<a href="#" target="_blank" rel="nofollow sponsored noopener" class="ad-creative" id="ad-click-target">
+							<div class="ad-placeholder">
+								<span>Your ad could appear here.</span>
+							</div>
+						</a>
+						<p class="ad-disclaimer">Ads help keep NovaNet free. You can close this at any time.</p>
+					</div>
+				</div>
+			</div>
+		</div>
 	</body>
 </html>

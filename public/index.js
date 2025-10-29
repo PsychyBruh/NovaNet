@@ -7,6 +7,71 @@ let tabs = new Map();
 let history = new Map();
 let currentHistoryIndex = new Map();
 
+// Ad modal frequency control
+const AD_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+const AD_LAST_SHOWN_KEY = 'novanet_ad_last_shown_at';
+let isAdOpen = false;
+
+function canShowAd() {
+	try {
+		const lastShownRaw = localStorage.getItem(AD_LAST_SHOWN_KEY);
+		if (!lastShownRaw) return true;
+		const lastShown = parseInt(lastShownRaw, 10);
+		if (Number.isNaN(lastShown)) return true;
+		return Date.now() - lastShown >= AD_COOLDOWN_MS;
+	} catch (_) {
+		return true;
+	}
+}
+
+function openAdModal() {
+	const modal = document.getElementById('ad-modal');
+	if (!modal) return;
+	if (isAdOpen) return;
+	isAdOpen = true;
+	modal.style.display = 'flex';
+
+	// Close handlers
+	const closeBtn = document.getElementById('ad-close-btn');
+	const onClose = () => closeAdModal();
+	if (closeBtn) closeBtn.addEventListener('click', onClose, { once: true });
+
+	const onKey = (e) => { if (e.key === 'Escape') { closeAdModal(); } };
+	document.addEventListener('keydown', onKey, { once: true });
+
+	const onOverlay = (e) => { if (e.target === modal) { closeAdModal(); } };
+	modal.addEventListener('click', onOverlay, { once: true });
+
+	// Set smartlink href if provided
+	try {
+		const a = document.getElementById('ad-click-target');
+		const smartlink = (window._CONFIG && window._CONFIG.ads && window._CONFIG.ads.adsterraSmartlink) || '';
+		if (a && smartlink) {
+			a.href = smartlink;
+			// When user clicks the ad, also set cooldown
+			a.addEventListener('click', () => {
+				try { localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now())); } catch (_) {}
+				closeAdModal();
+			});
+		}
+	} catch(_) { /* ignore */ }
+}
+
+function closeAdModal() {
+	const modal = document.getElementById('ad-modal');
+	if (!modal) return;
+	modal.style.display = 'none';
+	isAdOpen = false;
+	try {
+		localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now()));
+	} catch (_) { /* ignore */ }
+}
+
+function maybeShowAdOnInteraction() {
+	if (!canShowAd()) return;
+	openAdModal();
+}
+
 // Cookie Management System
 class CookieManager {
 	constructor() {
@@ -30,10 +95,34 @@ class CookieManager {
 	// Save cookies to localStorage
 	saveCookies() {
 		try {
+			// Clean up expired cookies first
+			this.cleanupExpiredCookies();
+			
 			const obj = Object.fromEntries(this.cookieStore);
-			localStorage.setItem('novanet_cookies', JSON.stringify(obj));
+			const dataString = JSON.stringify(obj);
+			
+			// Check if data is too large (localStorage has ~5-10MB limit)
+			if (dataString.length > 4 * 1024 * 1024) { // 4MB limit
+				console.warn('Cookie data too large, trimming...');
+				this.trimCookiesToLimit(2 * 1024 * 1024); // Trim to 2MB
+				const trimmedObj = Object.fromEntries(this.cookieStore);
+				localStorage.setItem('novanet_cookies', JSON.stringify(trimmedObj));
+			} else {
+				localStorage.setItem('novanet_cookies', dataString);
+			}
 		} catch (error) {
 			console.warn('Failed to save cookies:', error);
+			// If quota exceeded, try to clear some cookies
+			if (error.name === 'QuotaExceededError') {
+				console.warn('Quota exceeded, clearing oldest cookies...');
+				this.clearOldestCookies();
+				try {
+					const obj = Object.fromEntries(this.cookieStore);
+					localStorage.setItem('novanet_cookies', JSON.stringify(obj));
+				} catch (retryError) {
+					console.warn('Failed to save cookies after cleanup:', retryError);
+				}
+			}
 		}
 	}
 
@@ -135,6 +224,65 @@ class CookieManager {
 	clearAllCookies() {
 		this.cookieStore.clear();
 		this.saveCookies();
+	}
+	
+	// Clean up expired cookies
+	cleanupExpiredCookies() {
+		for (const [domain, domainCookies] of this.cookieStore) {
+			if (domainCookies instanceof Map) {
+				for (const [name, cookie] of domainCookies) {
+					if (cookie.expires && new Date() > new Date(cookie.expires)) {
+						domainCookies.delete(name);
+					}
+				}
+			}
+		}
+	}
+	
+	// Trim cookies to fit within size limit
+	trimCookiesToLimit(maxSize) {
+		// Convert to array of [domain, cookies] pairs for sorting
+		const domainEntries = Array.from(this.cookieStore.entries());
+		
+		// Sort by domain name (keep most important domains)
+		domainEntries.sort((a, b) => {
+			const importantDomains = ['instagram.com', 'google.com', 'facebook.com', 'twitter.com'];
+			const aImportant = importantDomains.some(d => a[0].includes(d));
+			const bImportant = importantDomains.some(d => b[0].includes(d));
+			
+			if (aImportant && !bImportant) return -1;
+			if (!aImportant && bImportant) return 1;
+			return a[0].localeCompare(b[0]);
+		});
+		
+		// Remove domains until we're under the limit
+		let currentSize = 0;
+		const newCookieStore = new Map();
+		
+		for (const [domain, domainCookies] of domainEntries) {
+			const domainData = Array.from(domainCookies.entries());
+			const domainSize = JSON.stringify(domainData).length;
+			
+			if (currentSize + domainSize <= maxSize) {
+				newCookieStore.set(domain, domainCookies);
+				currentSize += domainSize;
+			}
+		}
+		
+		this.cookieStore = newCookieStore;
+	}
+	
+	// Clear oldest cookies when quota is exceeded
+	clearOldestCookies() {
+		// Remove cookies from domains with the most cookies first
+		const domainEntries = Array.from(this.cookieStore.entries());
+		domainEntries.sort((a, b) => b[1].size - a[1].size);
+		
+		// Remove half of the cookies
+		const domainsToRemove = domainEntries.slice(0, Math.ceil(domainEntries.length / 2));
+		for (const [domain] of domainsToRemove) {
+			this.cookieStore.delete(domain);
+		}
 	}
 
 	// Get cookie string for requests
@@ -780,26 +928,44 @@ async function navigateToUrl(url, tabId = null) {
 						
 						// Suppress Instagram WebSocket errors and hide proxy origin
 						if (window.location.hostname.includes('instagram.com')) {
-							// Hide the proxy origin from Instagram
-							Object.defineProperty(window, 'location', {
-								value: {
-									...window.location,
-									hostname: 'www.instagram.com',
-									host: 'www.instagram.com',
-									origin: 'https://www.instagram.com',
-									protocol: 'https:',
-									port: ''
-								},
-								writable: false,
-								configurable: false
-							});
+							// Hide the proxy origin from Instagram using getter overrides
+							try {
+								Object.defineProperty(window.location, 'hostname', {
+									get: () => 'www.instagram.com',
+									configurable: true
+								});
+								Object.defineProperty(window.location, 'host', {
+									get: () => 'www.instagram.com',
+									configurable: true
+								});
+								Object.defineProperty(window.location, 'origin', {
+									get: () => 'https://www.instagram.com',
+									configurable: true
+								});
+								Object.defineProperty(window.location, 'protocol', {
+									get: () => 'https:',
+									configurable: true
+								});
+								Object.defineProperty(window.location, 'port', {
+									get: () => '',
+									configurable: true
+								});
+							} catch (e) {
+								// If we can't override location properties, just continue
+								console.warn('Could not override location properties:', e);
+							}
 							
 							// Override document.domain to hide proxy
-							Object.defineProperty(document, 'domain', {
-								value: 'instagram.com',
-								writable: false,
-								configurable: false
-							});
+							try {
+								Object.defineProperty(document, 'domain', {
+									value: 'instagram.com',
+									writable: false,
+									configurable: false
+								});
+							} catch (e) {
+								// If we can't override domain, just continue
+								console.warn('Could not override document.domain:', e);
+							}
 							
 							// Override console methods completely for Instagram
 							const originalConsoleError = console.error;
@@ -1637,4 +1803,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	// Update cookie count on load
 	updateCookieCount();
+
+	// Register first-user-interaction triggers for ad modal
+	const once = { once: false, passive: true };
+	document.addEventListener('click', maybeShowAdOnInteraction, once);
+	document.addEventListener('touchstart', maybeShowAdOnInteraction, once);
 });
