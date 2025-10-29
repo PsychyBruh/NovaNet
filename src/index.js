@@ -105,6 +105,9 @@ fastify.get('/ads/proxy', async (req, reply) => {
     res.headers.forEach((v, k) => {
       if (!skipHeaders.has(k.toLowerCase())) reply.header(k, v);
     });
+    // Explicitly allow framing on proxied responses
+    reply.header('x-frame-options', 'ALLOWALL');
+    reply.header('content-security-policy', "frame-ancestors *");
 
     // Rewrite HTML and CSS to route subresources through this proxy
     if (contentType.includes('text/html')) {
