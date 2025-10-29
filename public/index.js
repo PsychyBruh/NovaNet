@@ -8,10 +8,34 @@ let history = new Map();
 let currentHistoryIndex = new Map();
 
 // Ad modal frequency control
-const AD_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+const AD_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
 const AD_LAST_SHOWN_KEY = 'novanet_ad_last_shown_at';
 const AD_MIN_VIEW_MS = 10 * 1000; // 10 seconds lock before close
 let isAdOpen = false;
+let adNextTimeout = null;
+
+function getMsUntilNextAd() {
+    try {
+        const lastShownRaw = localStorage.getItem(AD_LAST_SHOWN_KEY);
+        if (!lastShownRaw) return 0;
+        const lastShown = parseInt(lastShownRaw, 10);
+        if (Number.isNaN(lastShown)) return 0;
+        const elapsed = Date.now() - lastShown;
+        return elapsed >= AD_COOLDOWN_MS ? 0 : (AD_COOLDOWN_MS - elapsed);
+    } catch(_) {
+        return 0;
+    }
+}
+
+function scheduleNextAd() {
+    try { if (adNextTimeout) { clearTimeout(adNextTimeout); adNextTimeout = null; } } catch(_) {}
+    const ms = getMsUntilNextAd();
+    adNextTimeout = setTimeout(() => {
+        if (canShowAd()) openAdModal();
+        // After attempting to show, set up the next timer window
+        scheduleNextAd();
+    }, ms || 0);
+}
 
 function canShowAd() {
 	try {
@@ -80,7 +104,7 @@ function openAdModal() {
         }
     } catch(_) { /* ignore */ }
 
-    // Attempt to open the smartlink in a new tab immediately on user gesture
+    // Attempt to open the smartlink in a new tab immediately
     try {
         const smartlink = (window._CONFIG && window._CONFIG.ads && window._CONFIG.ads.adsterraSmartlink) || '';
         if (smartlink) {
@@ -98,6 +122,7 @@ function openAdModal() {
             }
             // Start cooldown at show-time since the popup was triggered
             try { localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now())); } catch(_) {}
+            scheduleNextAd();
         }
     } catch(_) { /* ignore */ }
 }
@@ -120,6 +145,7 @@ function closeAdModal() {
     try {
         localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now()));
     } catch (_) { /* ignore */ }
+    scheduleNextAd();
 }
 
 function maybeShowAdOnInteraction() {
@@ -1879,11 +1905,12 @@ document.addEventListener('DOMContentLoaded', () => {
 	tabManager.history.set('home', []);
 	tabManager.currentHistoryIndex.set('home', -1);
 	
-	// Update cookie count on load
-	updateCookieCount();
+    // Update cookie count on load
+    updateCookieCount();
 
-	// Register first-user-interaction triggers for ad modal
-	const once = { once: false, passive: true };
-	document.addEventListener('click', maybeShowAdOnInteraction, once);
-	document.addEventListener('touchstart', maybeShowAdOnInteraction, once);
+    // Show ad immediately if due, then schedule future shows every 15 minutes
+    if (canShowAd()) {
+        openAdModal();
+    }
+    scheduleNextAd();
 });
