@@ -10,6 +10,7 @@ let currentHistoryIndex = new Map();
 // Ad modal frequency control
 const AD_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 const AD_LAST_SHOWN_KEY = 'novanet_ad_last_shown_at';
+const AD_MIN_VIEW_MS = 10 * 1000; // 10 seconds lock before close
 let isAdOpen = false;
 
 function canShowAd() {
@@ -25,46 +26,100 @@ function canShowAd() {
 }
 
 function openAdModal() {
-	const modal = document.getElementById('ad-modal');
-	if (!modal) return;
-	if (isAdOpen) return;
-	isAdOpen = true;
-	modal.style.display = 'flex';
+    const modal = document.getElementById('ad-modal');
+    if (!modal) return;
+    if (isAdOpen) return;
+    isAdOpen = true;
+    modal.style.display = 'flex';
 
-	// Close handlers
-	const closeBtn = document.getElementById('ad-close-btn');
-	const onClose = () => closeAdModal();
-	if (closeBtn) closeBtn.addEventListener('click', onClose, { once: true });
+    // Close handlers
+    const closeBtn = document.getElementById('ad-close-btn');
+    const disclaimer = modal.querySelector('.ad-disclaimer');
 
-	const onKey = (e) => { if (e.key === 'Escape') { closeAdModal(); } };
-	document.addEventListener('keydown', onKey, { once: true });
+    // Lock close for AD_MIN_VIEW_MS with countdown
+    const unlockAt = Date.now() + AD_MIN_VIEW_MS;
+    let countdownTimer = null;
+    if (closeBtn) {
+        try { closeBtn.disabled = true; } catch(_) {}
+        const tick = () => {
+            const remaining = Math.max(0, Math.ceil((unlockAt - Date.now())/1000));
+            closeBtn.textContent = remaining > 0 ? `Close (${remaining})` : '×';
+            if (remaining <= 0) {
+                try { closeBtn.disabled = false; } catch(_) {}
+                clearInterval(countdownTimer);
+                // Wire final close handlers once unlocked
+                const onClose = () => closeAdModal();
+                closeBtn.addEventListener('click', onClose, { once: true });
+                const onKey = (e) => { if (e.key === 'Escape') { closeAdModal(); } };
+                document.addEventListener('keydown', onKey, { once: true });
+                const onOverlay = (e) => { if (e.target === modal) { closeAdModal(); } };
+                modal.addEventListener('click', onOverlay, { once: true });
+            }
+        };
+        tick();
+        countdownTimer = setInterval(tick, 250);
+    }
+    if (disclaimer) {
+        try {
+            disclaimer.dataset.original = disclaimer.textContent || '';
+            disclaimer.textContent = 'Opening sponsored link... you can close shortly.';
+        } catch(_) {}
+    }
 
-	const onOverlay = (e) => { if (e.target === modal) { closeAdModal(); } };
-	modal.addEventListener('click', onOverlay, { once: true });
+    // Set smartlink href if provided
+    try {
+        const a = document.getElementById('ad-click-target');
+        const smartlink = (window._CONFIG && window._CONFIG.ads && window._CONFIG.ads.adsterraSmartlink) || '';
+        if (a && smartlink) {
+            a.href = smartlink;
+            // When user clicks the ad, also set cooldown
+            a.addEventListener('click', () => {
+                try { localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now())); } catch (_) {}
+                closeAdModal();
+            });
+        }
+    } catch(_) { /* ignore */ }
 
-	// Set smartlink href if provided
-	try {
-		const a = document.getElementById('ad-click-target');
-		const smartlink = (window._CONFIG && window._CONFIG.ads && window._CONFIG.ads.adsterraSmartlink) || '';
-		if (a && smartlink) {
-			a.href = smartlink;
-			// When user clicks the ad, also set cooldown
-			a.addEventListener('click', () => {
-				try { localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now())); } catch (_) {}
-				closeAdModal();
-			});
-		}
-	} catch(_) { /* ignore */ }
+    // Attempt to open the smartlink in a new tab immediately on user gesture
+    try {
+        const smartlink = (window._CONFIG && window._CONFIG.ads && window._CONFIG.ads.adsterraSmartlink) || '';
+        if (smartlink) {
+            const win = window.open(smartlink, '_blank');
+            if (win) { try { win.opener = null; } catch(_) {} }
+            else {
+                // Fallback via temporary anchor (in case of popup blockers)
+                const a = document.createElement('a');
+                a.href = smartlink;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            }
+            // Start cooldown at show-time since the popup was triggered
+            try { localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now())); } catch(_) {}
+        }
+    } catch(_) { /* ignore */ }
 }
 
 function closeAdModal() {
-	const modal = document.getElementById('ad-modal');
-	if (!modal) return;
-	modal.style.display = 'none';
-	isAdOpen = false;
-	try {
-		localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now()));
-	} catch (_) { /* ignore */ }
+    const modal = document.getElementById('ad-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    isAdOpen = false;
+    // Restore UI bits
+    try {
+        const closeBtn = document.getElementById('ad-close-btn');
+        if (closeBtn) { closeBtn.disabled = false; closeBtn.textContent = '×'; }
+        const disclaimer = modal.querySelector('.ad-disclaimer');
+        if (disclaimer && disclaimer.dataset && disclaimer.dataset.original !== undefined) {
+            disclaimer.textContent = disclaimer.dataset.original;
+            delete disclaimer.dataset.original;
+        }
+    } catch(_) {}
+    try {
+        localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now()));
+    } catch (_) { /* ignore */ }
 }
 
 function maybeShowAdOnInteraction() {

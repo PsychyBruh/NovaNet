@@ -758,6 +758,13 @@ body {
 	color: var(--text-primary);
 }
 
+.close-ad-modal[disabled] {
+	opacity: 0.6;
+	cursor: not-allowed;
+	background: transparent;
+	color: var(--text-muted);
+}
+
 .ad-modal-body {
 	padding: 16px;
 }
