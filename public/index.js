@@ -735,8 +735,35 @@ function navigateTo(url) {
 function openAddressInNewTab() {
     const url = address.value.trim();
     if (!url) return;
-    const newTabId = tabManager.createTab(url, 'Loading...');
-    navigateToUrl(url, newTabId);
+    try {
+        // Ensure SW is registered so the new tab can proxy requests
+        if (typeof registerSW === 'function') {
+            // Fire and forget; user gesture should still allow the popup
+            registerSW().catch(() => {});
+        }
+    } catch (_) {}
+
+    try {
+        const searchUrl = search(url, searchEngine.value);
+        const sjEncode = scramjet.encodeUrl.bind(scramjet);
+        const targetUrl = sjEncode(searchUrl);
+        const win = window.open(targetUrl, '_blank');
+        if (win) {
+            // Prevent reverse tabnabbing
+            try { win.opener = null; } catch(_) {}
+        } else {
+            // Fallback via temporary anchor if popup blocked
+            const a = document.createElement('a');
+            a.href = targetUrl;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+    } catch (err) {
+        showError('Failed to open in new tab.', err?.toString?.() || '');
+    }
 }
 
 async function navigateToUrl(url, tabId = null) {
