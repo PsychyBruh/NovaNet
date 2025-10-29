@@ -428,20 +428,8 @@ const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
 	};
 	
 	// Override Error constructor
-	const originalError = window.Error;
-	window.Error = function(message) {
-		if (message && (
-			message.includes('LSPlatformRealtimeTransport') ||
-			message.includes('IGDThreadDetailMainViewOffMsysQuery') ||
-			message.includes('err.ts:33') ||
-			message.includes('CAUGHT ERROR')
-		)) {
-			const silentError = new originalError('Silent error');
-			silentError.stack = '';
-			return silentError;
-		}
-		return new originalError(message);
-	};
+	// Avoid overriding native Error constructor (causes confusing stack traces)
+	// We filter noisy errors via global handlers below instead.
 	
 	// Global error handlers
 	window.addEventListener('error', function(event) {
@@ -741,6 +729,14 @@ function navigateTo(url) {
 	} else {
 		navigateToUrl(url);
 	}
+}
+
+// Open the address bar URL in a new tab
+function openAddressInNewTab() {
+    const url = address.value.trim();
+    if (!url) return;
+    const newTabId = tabManager.createTab(url, 'Loading...');
+    navigateToUrl(url, newTabId);
 }
 
 async function navigateToUrl(url, tabId = null) {

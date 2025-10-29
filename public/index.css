@@ -222,6 +222,24 @@ body {
 	background: var(--primary-hover);
 }
 
+/* Open in New Tab button */
+.open-in-new-tab-btn {
+	background: var(--success-color);
+	border: none;
+	border-radius: 8px;
+	color: white;
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: 600;
+	padding: 0 16px;
+	height: 36px;
+	transition: all 0.2s ease;
+}
+
+.open-in-new-tab-btn:hover {
+	background: #059669; /* slightly darker green */
+}
+
 .security-indicator {
 	display: flex;
 	align-items: center;
