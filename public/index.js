@@ -95,14 +95,9 @@ function openAdModal() {
         const frame = document.getElementById('ad-embedded-frame');
         const smartlink = (window._CONFIG && window._CONFIG.ads && window._CONFIG.ads.adsterraSmartlink) || '';
         if (frame && smartlink) {
-            try {
-                const sjEncode = scramjet.encodeUrl.bind(scramjet);
-                frame.src = sjEncode(smartlink);
-            } catch (_) {
-                // Fallback to simple loader page if scramjet isn't ready
-                const encoded = encodeURIComponent(smartlink);
-                frame.src = `/ads/frame.html?u=${encoded}`;
-            }
+            // Route through server proxy so the server requests the content
+            const encoded = encodeURIComponent(smartlink);
+            frame.src = `/ads/proxy?u=${encoded}`;
             try { localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now())); } catch (_) {}
             scheduleNextAd();
             // Show manual open button as fallback
@@ -110,11 +105,9 @@ function openAdModal() {
             if (btn) {
                 btn.style.display = 'inline-block';
                 btn.onclick = () => {
-                    try { if (typeof registerSW === 'function') { registerSW().catch(() => {}); } } catch(_) {}
                     try {
-                        const sjEncode = scramjet.encodeUrl.bind(scramjet);
-                        const encodedUrl = sjEncode(smartlink);
-                        const win = window.open(encodedUrl, '_blank');
+                        const proxyUrl = `/ads/proxy?u=${encodeURIComponent(smartlink)}`;
+                        const win = window.open(proxyUrl, '_blank');
                         if (win) { try { win.opener = null; } catch(_) {} }
                     } catch(_) {}
                 };
