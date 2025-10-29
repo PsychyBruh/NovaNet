@@ -90,39 +90,32 @@ function openAdModal() {
         } catch(_) {}
     }
 
-    // Set smartlink href if provided
+    // Set embedded iframe to smartlink via Scramjet proxy (server-side fetch)
     try {
-        const a = document.getElementById('ad-click-target');
+        const frame = document.getElementById('ad-embedded-frame');
         const smartlink = (window._CONFIG && window._CONFIG.ads && window._CONFIG.ads.adsterraSmartlink) || '';
-        if (a && smartlink) {
-            a.href = smartlink;
-            // When user clicks the ad, also set cooldown
-            a.addEventListener('click', () => {
-                try { localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now())); } catch (_) {}
-                closeAdModal();
-            });
-        }
-    } catch(_) { /* ignore */ }
-
-    // Attempt to open the smartlink in a new tab immediately
-    try {
-        const smartlink = (window._CONFIG && window._CONFIG.ads && window._CONFIG.ads.adsterraSmartlink) || '';
-        if (smartlink) {
-            const win = window.open(smartlink, '_blank');
-            if (win) { try { win.opener = null; } catch(_) {} }
-            else {
-                // Fallback via temporary anchor (in case of popup blockers)
-                const a = document.createElement('a');
-                a.href = smartlink;
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
+        if (frame && smartlink) {
+            try {
+                const sjEncode = scramjet.encodeUrl.bind(scramjet);
+                frame.src = sjEncode(smartlink);
+            } catch (_) {
+                // Fallback to simple loader page if scramjet isn't ready
+                const encoded = encodeURIComponent(smartlink);
+                frame.src = `/ads/frame.html?u=${encoded}`;
             }
-            // Start cooldown at show-time since the popup was triggered
-            try { localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now())); } catch(_) {}
+            try { localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now())); } catch (_) {}
             scheduleNextAd();
+            // Show manual open button as fallback
+            const btn = document.getElementById('ad-open-newtab-btn');
+            if (btn) {
+                btn.style.display = 'inline-block';
+                btn.onclick = () => {
+                    try {
+                        const win = window.open(smartlink, '_blank');
+                        if (win) { try { win.opener = null; } catch(_) {} }
+                    } catch(_) {}
+                };
+            }
         }
     } catch(_) { /* ignore */ }
 }

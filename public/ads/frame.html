@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sponsored</title>
+    <style>
+      html, body {
+        margin: 0; padding: 0; height: 100%;
+        background: #0b1220; color: #cbd5e1; font-family: system-ui, sans-serif;
+      }
+      .wrap { display: flex; align-items: center; justify-content: center; height: 100%; }
+      .msg { opacity: 0.8; font-size: 14px; }
+      a { color: #93c5fd; }
+    </style>
+    <script>
+      (function(){
+        try {
+          const params = new URLSearchParams(location.search);
+          const u = params.get('u');
+          if (u) {
+            // Navigate this iframe to the smartlink
+            location.replace(u);
+          }
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="msg">Loading sponsored content… If nothing appears, <a id="open" href="#" target="_top" rel="noopener noreferrer">open in this frame</a>.</div>
+    </div>
+    <script>
+      (function(){
+        const link = document.getElementById('open');
+        try {
+          const params = new URLSearchParams(location.search);
+          const u = params.get('u');
+          if (u) {
+            link.href = u;
+            link.addEventListener('click', function(ev){
+              // Allow default navigation in-frame
+            });
+          } else {
+            link.style.display = 'none';
+          }
+        } catch(_){}
+      })();
+    </script>
+  </body>
+  </html>
+

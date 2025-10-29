@@ -24,8 +24,11 @@ const fastify = Fastify({
 	serverFactory: (handler) => {
 		return createServer()
 			.on("request", (req, res) => {
-				res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-				res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+				// Skip COOP/COEP on ad iframe routes to allow third-party content
+				if (!req.url.startsWith('/ads/')) {
+					res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+					res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+				}
 				handler(req, res);
 			})
 			.on("upgrade", (req, socket, head) => {
