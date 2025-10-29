@@ -110,8 +110,11 @@ function openAdModal() {
             if (btn) {
                 btn.style.display = 'inline-block';
                 btn.onclick = () => {
+                    try { if (typeof registerSW === 'function') { registerSW().catch(() => {}); } } catch(_) {}
                     try {
-                        const win = window.open(smartlink, '_blank');
+                        const sjEncode = scramjet.encodeUrl.bind(scramjet);
+                        const encodedUrl = sjEncode(smartlink);
+                        const win = window.open(encodedUrl, '_blank');
                         if (win) { try { win.opener = null; } catch(_) {} }
                     } catch(_) {}
                 };
